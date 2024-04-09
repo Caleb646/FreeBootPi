@@ -12,7 +12,7 @@ _start:
     // the processor ID from the mpidr_el1 system register. If 
     // the current process ID is 0, then execution is transferred to the master function:
     mrs    x0, mpidr_el1   // mrs = Load value from a system register to one of the general purpose registers (x0–x30)     
-    and    x0, x0,#0xFF    // Check processor id
+    and    x0, x0, #0xFF    // Check processor id
     cbz    x0, master        
     b      proc_hang       // Hang for all non-primary CPU
 
@@ -33,5 +33,5 @@ master:
     // LOW_MEMORY is defined in mm.h and is equal to 4MB. 
     // Our kernel's stack won't grow (grows from higher to lower addresses) very large and the image 
     // itself is tiny, so 4MB is more than enough for us.
-    mov    sp, #LOW_MEMORY // initialize the stack pointer
+    mov    sp, LOW_MEMORY // initialize the stack pointer
     bl    kernel_main // pass execution to the kernel_main function

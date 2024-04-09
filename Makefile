@@ -67,7 +67,6 @@
 # ARMGNU is a cross-compiler prefix.
 ARMGNU ?= aarch64-linux-gnu
 
-
 # -Wall Show all warnings.
 
 # -nostdlib Don't use the C standard library. Most of the 
@@ -93,12 +92,18 @@ COPS = -Wall -nostdlib -nostartfiles -ffreestanding -Iinclude -mgeneral-regs-onl
 ASMOPS = -Iinclude 
 
 BUILD_DIR = build
+OUTDIR = out
 SRC_DIR = src
+SRC_DIR += src/boot
 
-all : kernel8.img
+.PHONY: all
+all: kernel8.img
 
-clean :
-    rm -rf $(BUILD_DIR) *.img 
+.PHONY: qemu
+qemu: qemu.img
+
+C_FILES = $(wildcard *.c $(foreach fd, $(SRC_DIR), $(fd)/*.c))
+ASM_FILES =$(wildcard *.S $(foreach fd, $(SRC_DIR), $(fd)/*.S))
 
 # The [-MMD] parameter instructs the gcc compiler 
 # to create a dependency file for each generated object file. 
@@ -106,17 +111,19 @@ clean :
 # source file. These dependencies usually contain a list of all 
 # included headers. We need to include all of the generated dependency 
 # files so that make knows what exactly to recompile in case a header changes.
-$(BUILD_DIR)/%_c.o: $(SRC_DIR)/%.c
-    mkdir -p $(@D)
-    $(ARMGNU)-gcc $(COPS) -MMD -c $< -o $@
+#
+# This is a target for all of the C .o files followed by the recipe
+$(BUILD_DIR)/%_c.o: %.c
+	mkdir -p $(@D)
+	$(ARMGNU)-gcc $(COPS) -MMD -c $< -o $@
 
-$(BUILD_DIR)/%_s.o: $(SRC_DIR)/%.S
-    $(ARMGNU)-gcc $(ASMOPS) -MMD -c $< -o $@
+# This is a target for all of the Assembly .S files followed by the recipe
+$(BUILD_DIR)/%_s.o: %.S
+	mkdir -p $(@D)
+	$(ARMGNU)-gcc $(ASMOPS) -MMD -c $< -o $@
 
-C_FILES = $(wildcard $(SRC_DIR)/*.c)
-ASM_FILES = $(wildcard $(SRC_DIR)/*.S)
-OBJ_FILES = $(C_FILES:$(SRC_DIR)/%.c=$(BUILD_DIR)/%_c.o)
-OBJ_FILES += $(ASM_FILES:$(SRC_DIR)/%.S=$(BUILD_DIR)/%_s.o)
+OBJ_FILES = $(C_FILES:%.c=$(BUILD_DIR)/%_c.o)
+OBJ_FILES += $(ASM_FILES:%.S=$(BUILD_DIR)/%_s.o)
 
 DEP_FILES = $(OBJ_FILES:%.o=%.d)
 -include $(DEP_FILES)
@@ -132,6 +139,19 @@ DEP_FILES = $(OBJ_FILES:%.o=%.d)
 # into the kernel8.img image. The trailing 8 denotes ARMv8 which is a 64-bit 
 # architecture. This filename tells the firmware to boot the processor into 64-bit mode.
 
-kernel8.img: $(SRC_DIR)/linker.ld $(OBJ_FILES)
-    $(ARMGNU)-ld -T $(SRC_DIR)/linker.ld -o $(BUILD_DIR)/kernel8.elf  $(OBJ_FILES)
-    $(ARMGNU)-objcopy $(BUILD_DIR)/kernel8.elf -O binary kernel8.img
+kernel8.img: linker.ld $(OBJ_FILES)
+	$(ARMGNU)-ld -T linker.ld -o $(BUILD_DIR)/kernel8.elf $(OBJ_FILES)
+	$(ARMGNU)-objcopy $(BUILD_DIR)/kernel8.elf -O binary $(BUILD_DIR)/kernel8.img
+	mkdir -p $(OUTDIR)
+	cp $(BUILD_DIR)/kernel8.img $(OUTDIR)/kernel8.img
+
+qemu.img: qemu_linker.ld $(OBJ_FILES)
+	$(ARMGNU)-ld -T qemu_linker.ld -o $(BUILD_DIR)/kernel8.elf $(OBJ_FILES)
+	$(ARMGNU)-objcopy $(BUILD_DIR)/kernel8.elf -O binary $(BUILD_DIR)/kernel8.img
+	mkdir -p $(OUTDIR)
+	cp $(BUILD_DIR)/kernel8.img $(OUTDIR)/kernel8.img
+	$(ARMGNU)-objcopy -D $(BUILD_DIR)/kernel8.elf > $(BUILD_DIR)/kernel8.list
+
+.PHONY: clean
+clean:
+	rm -rf $(BUILD_DIR) $(OUTDIR)
