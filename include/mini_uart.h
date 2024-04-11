@@ -1,30 +1,29 @@
 #ifndef MINI_UART_H
 #define MINI_UART_H
 
-#define PBASE 0x3F000000 // Peripherals physical address 0x3F000000
+#include "peripherals/base.h"
 
-#define GPFSEL1         (PBASE+0x00200004)
-#define GPSET0          (PBASE+0x0020001C)
-#define GPCLR0          (PBASE+0x00200028)
-#define GPPUD           (PBASE+0x00200094)
-#define GPPUDCLK0       (PBASE+0x00200098)
-
-#define AUX_ENABLES     (PBASE+0x00215004)
-#define AUX_MU_IO_REG   (PBASE+0x00215040)
-#define AUX_MU_IER_REG  (PBASE+0x00215044)
-#define AUX_MU_IIR_REG  (PBASE+0x00215048)
-#define AUX_MU_LCR_REG  (PBASE+0x0021504C)
-#define AUX_MU_MCR_REG  (PBASE+0x00215050)
-#define AUX_MU_LSR_REG  (PBASE+0x00215054)
-#define AUX_MU_MSR_REG  (PBASE+0x00215058)
-#define AUX_MU_SCRATCH  (PBASE+0x0021505C)
-#define AUX_MU_CNTL_REG (PBASE+0x00215060)
-#define AUX_MU_STAT_REG (PBASE+0x00215064)
-#define AUX_MU_BAUD_REG (PBASE+0x00215068)
+// Physical Address with Low Peripheral mode disabled is: 0x4_7C00_0000
+// Mini UART Physical Address with Low Peripheral mode disabled is: 0x4_7E21_5000
+// Subtracting 0x4_7E21_5000 - 0x4_7C00_0000 = 0x221_5000
+#define MINI_UART_BASE     PBASE + 0x2215000
+#define AUX_ENABLES_REG    (MINI_UART_BASE + 0x04)
+#define AUX_MU_IO_REG      (MINI_UART_BASE + 0x40)
+#define AUX_MU_IER_REG     (MINI_UART_BASE + 0x44)
+#define AUX_MU_IIR_REG     (MINI_UART_BASE + 0x48)
+#define AUX_MU_LCR_REG     (MINI_UART_BASE + 0x4C)
+#define AUX_MU_MCR_REG     (MINI_UART_BASE + 0x50)
+#define AUX_MU_LSR_REG     (MINI_UART_BASE + 0x54)
+#define AUX_MU_MSR_REG     (MINI_UART_BASE + 0x58)
+#define AUX_MU_SCRATCH_REG (MINI_UART_BASE + 0x5C)
+#define AUX_MU_CNTL_REG    (MINI_UART_BASE + 0x60)
+#define AUX_MU_STAT_REG    (MINI_UART_BASE + 0x64)
+#define AUX_MU_BAUD_REG    (MINI_UART_BASE + 0x68)
 
 void uart_init (void);
 char uart_recv (void);
 void uart_send (char c);
 void uart_send_string(char* str);
+void putc (void* p, char c);
 
 #endif
