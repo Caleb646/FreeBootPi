@@ -17,6 +17,7 @@
 // Reading these registers gives the current pull-state.
 // The Alternate function table also has the pull state which is applied after a power down
 // For GPIO Pins 10-15
+// NOTE: this may be a bad idea because of having a MMU
 #define GPIO_PUP_PDN_CNTRL_REG0 *((u32 volatile *)(GPIO_BASE + 0xE4))
 
 #endif  /*_P_GPIO_H */
