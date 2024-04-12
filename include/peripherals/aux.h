@@ -19,5 +19,7 @@
 #define AUX_MU_CNTL_REG    (AUX_BASE + 0x60)
 #define AUX_MU_STAT_REG    (AUX_BASE + 0x64)
 #define AUX_MU_BAUD_REG    (AUX_BASE + 0x68)
+#define AUX_UART_CLOCK     (500000000) // 500 MHz
+#define AUX_MU_BAUD(baud) ((AUX_UART_CLOCK / (baud * 8)) - 1)
 
 #endif

@@ -1,10 +1,10 @@
 #include "entry.h"
 
-    ; // 1st argument x0: type is the interrupt type
-    ; // 2nd argument x1: is the Exception Syndrome Register. 
-    ; // It contains detailed information about what caused the exception
-    ; // 3rd argument x2: is the elr_el1 register which contains the address of the 
-    ; // last instruction executed
+    // 1st argument x0: type is the interrupt type
+    // 2nd argument x1: is the Exception Syndrome Register. 
+    // It contains detailed information about what caused the exception
+    // 3rd argument x2: is the elr_el1 register which contains the address of the 
+    // last instruction executed
 	.macro handle_invalid_entry type
 	exception_handler_entry
 	mov	x0, #\type
@@ -14,15 +14,15 @@
 	b	err_hang
 	.endm
 
-    ; // jump to a label that is provided for the 
-    ; // macro as label argument. We need .align 7 instruction 
-    ; // because all exception vectors should be located at offset 0x80 bytes one from another.
+    // jump to a label that is provided for the 
+    // macro as label argument. We need .align 7 instruction 
+    // because all exception vectors should be located at offset 0x80 bytes one from another.
 	.macro	ventry	label
 	.align	7
 	b	\label
 	.endm
 
-    ; // Stores registers x0 - x30 to the stack.
+    // Stores registers x0 - x30 to the stack.
 	.macro	exception_handler_entry
 	sub	sp, sp, #S_FRAME_SIZE
 	stp	x0, x1, [sp, #16 * 0]
@@ -43,9 +43,9 @@
 	str	x30, [sp, #16 * 15] 
 	.endm
 
-    ; // Restores processor state by copying back the 
-    ; // values of x0 - x30 registers. It also executes 
-    ; // eret instruction, which returns us back to normal execution flow.
+    // Restores processor state by copying back the 
+    // values of x0 - x30 registers. It also executes 
+    // eret instruction, which returns us back to normal execution flow.
 	.macro	exception_handler_exit
 	ldp	x0, x1, [sp, #16 * 0]
 	ldp	x2, x3, [sp, #16 * 1]
@@ -74,25 +74,25 @@
 .align	11
 .globl vectors 
 vectors:
-	ventry	sync_invalid_el1t	 ; // Synchronous EL1t
-	ventry	irq_invalid_el1t	 ; // IRQ EL1t
-	ventry	fiq_invalid_el1t	 ; // FIQ EL1t
-	ventry	error_invalid_el1t	 ; // Error EL1t
+	ventry	sync_invalid_el1t	 // Synchronous EL1t
+	ventry	irq_invalid_el1t	 // IRQ EL1t
+	ventry	fiq_invalid_el1t	 // FIQ EL1t
+	ventry	error_invalid_el1t	 // Error EL1t
 
-	ventry	sync_invalid_el1h	 ; // Synchronous EL1h
-	ventry	el1_irq			     ; // IRQ EL1h
-	ventry	fiq_invalid_el1h	 ; // FIQ EL1h
-	ventry	error_invalid_el1h	 ; // Error EL1h
+	ventry	sync_invalid_el1h	 // Synchronous EL1h
+	ventry	el1_irq			     // IRQ EL1h
+	ventry	fiq_invalid_el1h	 // FIQ EL1h
+	ventry	error_invalid_el1h	 // Error EL1h
 
-	ventry	sync_invalid_el0_64	 ; // Synchronous 64-bit EL0
-	ventry	irq_invalid_el0_64	 ; // IRQ 64-bit EL0
-	ventry	fiq_invalid_el0_64	 ; // FIQ 64-bit EL0
-	ventry	error_invalid_el0_64 ; // Error 64-bit EL0
+	ventry	sync_invalid_el0_64	 // Synchronous 64-bit EL0
+	ventry	irq_invalid_el0_64	 // IRQ 64-bit EL0
+	ventry	fiq_invalid_el0_64	 // FIQ 64-bit EL0
+	ventry	error_invalid_el0_64 // Error 64-bit EL0
 
-	ventry	sync_invalid_el0_32	 ; // Synchronous 32-bit EL0
-	ventry	irq_invalid_el0_32	 ; // IRQ 32-bit EL0
-	ventry	fiq_invalid_el0_32	 ; // FIQ 32-bit EL0
-	ventry	error_invalid_el0_32 ; // Error 32-bit EL0
+	ventry	sync_invalid_el0_32	 // Synchronous 32-bit EL0
+	ventry	irq_invalid_el0_32	 // IRQ 32-bit EL0
+	ventry	fiq_invalid_el0_32	 // FIQ 32-bit EL0
+	ventry	error_invalid_el0_32 // Error 32-bit EL0
 
 sync_invalid_el1t:
 	handle_invalid_entry  SYNC_INVALID_EL1t

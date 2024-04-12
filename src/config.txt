@@ -1,1 +1,1 @@
-arm_64bit=1
+core_freq_min=500
