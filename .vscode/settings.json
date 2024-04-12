@@ -1,0 +1,6 @@
+{
+    "files.associations": {
+        "actypes.h": "c",
+        "base.h": "c"
+    }
+}

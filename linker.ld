@@ -23,6 +23,7 @@
 * str instruction can be used only with 8-byte-aligned addresses.
 */
 
+
 SECTIONS
 {
     .text.boot : { *(.text.boot) }

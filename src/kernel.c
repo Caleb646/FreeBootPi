@@ -1,7 +1,7 @@
 //#include "printf.h"
 //#include "utils.h"
 //#include "irq.h"
-#include "mini_uart.h"
+#include "uart.h"
 
 void kernel_main(void)
 {
