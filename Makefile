@@ -94,17 +94,20 @@ ASMOPS = -Iinclude
 
 BUILD_DIR = build
 OUTDIR = out
-SRC_DIR = src
-LOADER_SRC_DIR += src/loader
+KERNEL_SRC_DIR = kernel
+LOADER_SRC_DIR = loader
 
 .PHONY: all
-all: kernel8.img
+all: kernel.img loader.img
 
-.PHONY: qemu
-qemu: qemu.img
+.PHONY: kernel
+kernel: kernel.img
 
-C_FILES = $(wildcard *.c $(foreach fd, $(SRC_DIR), $(fd)/*.c))
-ASM_FILES =$(wildcard *.S $(foreach fd, $(SRC_DIR), $(fd)/*.S))
+.PHONY: loader
+loader: loader.img
+
+C_FILES = $(wildcard *.c $(foreach fd, $(KERNEL_SRC_DIR), $(fd)/*.c))
+ASM_FILES =$(wildcard *.S $(foreach fd, $(KERNEL_SRC_DIR), $(fd)/*.S))
 
 # The [-MMD] parameter instructs the gcc compiler 
 # to create a dependency file for each generated object file. 
@@ -129,7 +132,7 @@ OBJ_FILES += $(ASM_FILES:%.S=$(BUILD_DIR)/%_s.o)
 DEP_FILES = $(OBJ_FILES:%.o=%.d)
 -include $(DEP_FILES)
 
-# $(ARMGNU)-ld -T $(SRC_DIR)/linker.ld -o kernel8.elf  $(OBJ_FILES)
+# $(ARMGNU)-ld -T $(KERNEL_SRC_DIR)/linker.ld -o kernel8.elf  $(OBJ_FILES)
 # Use the OBJ_FILES array to build the kernel8.elf file. We use 
 # the linker script src/linker.ld to define the basic layout of the resulting executable image
 
@@ -140,18 +143,14 @@ DEP_FILES = $(OBJ_FILES:%.o=%.d)
 # into the kernel8.img image. The trailing 8 denotes ARMv8 which is a 64-bit 
 # architecture. This filename tells the firmware to boot the processor into 64-bit mode.
 
-kernel8.img: linker.ld $(OBJ_FILES)
-	$(ARMGNU)-ld -T linker.ld -o $(BUILD_DIR)/kernel8.elf $(OBJ_FILES)
-	$(ARMGNU)-objcopy $(BUILD_DIR)/kernel8.elf -O binary $(BUILD_DIR)/kernel8.img
+kernel.img: linker.ld $(OBJ_FILES)
+	$(ARMGNU)-ld -T linker.ld -o $(BUILD_DIR)/kernel.elf $(OBJ_FILES)
+	$(ARMGNU)-objcopy $(BUILD_DIR)/kernel.elf -O binary $(BUILD_DIR)/kernel.img
 	mkdir -p $(OUTDIR)
-	cp $(BUILD_DIR)/kernel8.img $(OUTDIR)/kernel8.img
+	cp $(BUILD_DIR)/kernel.img $(OUTDIR)/kernel.img
 
-qemu.img: qemu_linker.ld $(OBJ_FILES)
-	$(ARMGNU)-ld -T qemu_linker.ld -o $(BUILD_DIR)/kernel8.elf $(OBJ_FILES)
-	$(ARMGNU)-objcopy $(BUILD_DIR)/kernel8.elf -O binary $(BUILD_DIR)/kernel8.img
-	mkdir -p $(OUTDIR)
-	cp $(BUILD_DIR)/kernel8.img $(OUTDIR)/kernel8.img
-	$(ARMGNU)-objcopy -D $(BUILD_DIR)/kernel8.elf > $(BUILD_DIR)/kernel8.list
+loader.img:
+	$(MAKE) -C loader $@
 
 .PHONY: clean
 clean:

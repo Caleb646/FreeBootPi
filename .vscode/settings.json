@@ -1,7 +1,0 @@
-{
-    "files.associations": {
-        "actypes.h": "c",
-        "base.h": "c",
-        "uart.h": "c"
-    }
-}

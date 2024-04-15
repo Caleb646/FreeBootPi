@@ -1,11 +1,10 @@
 #include "uart.h"
-#include "actypes.h"
+#include "base.h"
 
 #define MOD_REG(addr) *((u32 volatile *)addr)
 
 void mini_uart_init(void)
 {
-
     /*
      * The GPIO Pull-up/down Clock Registers control the actuation of internal pull-downs on
      * the respective GPIO pins. These registers must be used in conjunction with the GPPUD

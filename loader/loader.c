@@ -4,7 +4,7 @@
 
 #define MOD_REG(addr) *((u32 volatile *)addr)
 
-void mini_uart_init(void)
+static void mini_uart_init(void)
 {
     MOD_REG(AUX_ENABLES_REG) = 1;               // Enable mini uart (this also enables access to its registers)
     MOD_REG(AUX_MU_CNTL_REG) = 0;               // Disable auto flow control and disable receiver and transmitter (for now)
@@ -28,7 +28,7 @@ void mini_uart_init(void)
     MOD_REG(AUX_MU_CNTL_REG) = 3;               // Enable transmitter and receiver
 }
 
-void uart_send(char c)
+static void uart_send(char c)
 {
     while(1) 
     {
@@ -40,7 +40,7 @@ void uart_send(char c)
     MOD_REG(AUX_MU_IO_REG) = c;
 }
 
-void uart_send_string(char* str)
+static void uart_send_string(char* str)
 {
     for (int i = 0; str[i] != '\0'; ++i) 
     {
@@ -48,7 +48,7 @@ void uart_send_string(char* str)
     }
 }
 
-char uart_recv(void)
+static char uart_recv(void)
 {
     while(1) 
     {
@@ -62,10 +62,10 @@ char uart_recv(void)
 
 void loader_main(void)
 {
-    uart_init();
+    mini_uart_init();
     while (1) 
     {
         uart_send_string("Hello\r\n");
-        delay(500);
+        //delay(500);
     }
 }
