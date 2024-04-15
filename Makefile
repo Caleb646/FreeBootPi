@@ -65,7 +65,8 @@
 
 
 # ARMGNU is a cross-compiler prefix.
-ARMGNU ?= aarch64-linux-gnu
+ #aarch64-linux-gnu
+ARMGNU ?= ./arm_toolchain/bin/aarch64-none-elf
 
 # -Wall Show all warnings.
 

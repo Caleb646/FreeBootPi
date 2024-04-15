@@ -4,6 +4,7 @@
 
 // Raspberry Pi 4b
 #define PBASE 0x0FC000000 // When in "Low Peripheral Mode"
+// #define PBASE 0x47C000000
 
 // Raspberry Pi 3b
 //#define PBASE 0x3F000000
