@@ -25,7 +25,7 @@ void uart_init (void)
     GPIO_PUP_PDN_CNTRL_REG0 &= ~((3<<30) | (3<<28));
     delay(150);
 
-    put32(AUX_ENABLES_REG, 1);                   // Enable mini uart (this also enables access to its registers)
+    put32(AUX_ENABLES_REG, 1);               // Enable mini uart (this also enables access to its registers)
     put32(AUX_MU_CNTL_REG, 0);               // Disable auto flow control and disable receiver and transmitter (for now)
     put32(AUX_MU_IER_REG, 0);                // Disable receive and transmit interrupts
     put32(AUX_MU_LCR_REG, 3);                // Enable 8 bit mode
