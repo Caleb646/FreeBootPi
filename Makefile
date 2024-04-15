@@ -95,7 +95,7 @@ ASMOPS = -Iinclude
 BUILD_DIR = build
 OUTDIR = out
 SRC_DIR = src
-SRC_DIR += src/boot
+LOADER_SRC_DIR += src/loader
 
 .PHONY: all
 all: kernel8.img

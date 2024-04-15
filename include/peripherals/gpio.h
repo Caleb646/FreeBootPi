@@ -1,7 +1,7 @@
 #ifndef	_P_GPIO_H
 #define	_P_GPIO_H
 
-#include "actypes.h"
+#include "base.h"
 #include "peripherals/base.h"
 
 // Physical Address with Low Peripheral mode disabled is: 0x4_7C00_0000
