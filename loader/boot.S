@@ -5,30 +5,36 @@ _start: // Execution Starts Here
 
 setup: // Main Core Setup
     ldr     x1, =0x80000
-    ldr     x2, =_start
+    ldr     x2, =_start // 0x80000 - MAX_LOADER_SIZE
     ldr     w3, =__loader_size
 inner:  //
-    ldrb    x4, [x1], #1 // ldrb = Load unsigned Byte
-    strb    x4, [x2], #1 // strb = Store unsigned Byte
+    ldrb    w4, [x1], #1 // ldrb = Load unsigned Byte
+    strb    w4, [x2], #1 // strb = Store unsigned Byte
     sub     w3, w3, #1
-    cbnz    w3, inner + 2048 // Loader Max Size
+    // Compare and Branch Not Zero: conditionally 
+    // jumps to program-relative label if w3 is not equal to zero
+    cbnz    w3, inner 
     b relocated_entry
 
 relocated_entry: //
     // Check processor ID is zero (executing on main core), else hang
-    mrs     x1, mpidr_el1
-    and     x1, x1, #3
-    cbz     x1, setup
+    // mrs     x1, mpidr_el1
+    // and     x1, x1, #3
+    // cbz     x1, setup
     // Set stack to start below our code
     ldr     x1, =_start
     mov     sp, x1
+    b loader_entry
 
 // Jump to our main() routine in C (make sure it doesn't return)
 loader_entry: //
-    ldr     x0, =__loader_size
+    // ldr     x0, =__loader_size
+    // ldr     x1, =loader_main
+    // sub     x1, x1, x0
+    // blr     x1
     ldr     x1, =loader_main
-    sub     x1, x1, x0
-    br      x1
+    blr     x1
+    //bl      loader_main
     // In case it does return, halt the master core too
     b       spin
 

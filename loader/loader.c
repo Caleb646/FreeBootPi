@@ -71,8 +71,8 @@ static void delay(u32 cycles)
 void loader_main(void)
 {
     // Set bss section to 0
-    extern u8 __bss_start;
-	extern u8 __bss_end;
+    extern u64 __bss_start;
+	extern u64 __bss_end;
     u8* start = (u8*)__bss_start;
     u64 size = (u8*)__bss_end - start;
     while(size-- > 0)
@@ -80,10 +80,10 @@ void loader_main(void)
         *start++ = 0;
     }
 
-    extern u8 __loader_start;
-	extern u8 __loader_end;
+    extern u64 __loader_start;
+	extern u64 __loader_end;
     start = (u8*)__loader_start;
-    size = (u8*)__loader_end - __loader_start;
+    size = (u8*)__loader_end - start;
 
     mini_uart_init();
     while (1) 
