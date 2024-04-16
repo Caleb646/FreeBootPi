@@ -39,8 +39,9 @@ OBJ_FILES += $(ASM_FILES:%.S=$(BUILD_DIR)/%_s.o)
 DEP_FILES = $(OBJ_FILES:%.o=%.d)
 -include $(DEP_FILES)
 
+# -Map loader.map
 loader.img: linker.ld $(OBJ_FILES)
-	$(ARMGNU)-ld -T linker.ld -o $(BUILD_DIR)/kernel8.elf $(OBJ_FILES)
-	$(ARMGNU)-objcopy $(BUILD_DIR)/kernel8.elf -O binary $(BUILD_DIR)/kernel8.img
 	mkdir -p $(OUTDIR)
+	$(ARMGNU)-ld -Map $(OUTDIR)/loader.map -T linker.ld -o $(BUILD_DIR)/kernel8.elf $(OBJ_FILES)
+	$(ARMGNU)-objcopy $(BUILD_DIR)/kernel8.elf -O binary $(BUILD_DIR)/kernel8.img
 	cp $(BUILD_DIR)/kernel8.img $(OUTDIR)/kernel8.img

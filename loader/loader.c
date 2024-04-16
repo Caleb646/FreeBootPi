@@ -60,12 +60,35 @@ static char uart_recv(void)
     return(MOD_REG(AUX_MU_IO_REG) & 0xFF);
 }
 
+static void delay(u32 cycles)
+{
+    while(cycles--)
+    {
+        asm volatile ("nop");
+    }
+}
+
 void loader_main(void)
 {
+    // Set bss section to 0
+    extern u8 __bss_start;
+	extern u8 __bss_end;
+    u8* start = (u8*)__bss_start;
+    u64 size = (u8*)__bss_end - start;
+    while(size-- > 0)
+    {
+        *start++ = 0;
+    }
+
+    extern u8 __loader_start;
+	extern u8 __loader_end;
+    start = (u8*)__loader_start;
+    size = (u8*)__loader_end - __loader_start;
+
     mini_uart_init();
     while (1) 
     {
         uart_send_string("Hello\r\n");
-        //delay(500);
+        delay(500);
     }
 }

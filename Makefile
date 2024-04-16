@@ -93,7 +93,7 @@ COPS = -Wall -nostdlib -nostartfiles -ffreestanding -Iinclude -mgeneral-regs-onl
 ASMOPS = -Iinclude 
 
 BUILD_DIR = build
-OUTDIR = out
+OUTDIR = ./out
 KERNEL_SRC_DIR = kernel
 LOADER_SRC_DIR = loader
 
@@ -143,10 +143,11 @@ DEP_FILES = $(OBJ_FILES:%.o=%.d)
 # into the kernel8.img image. The trailing 8 denotes ARMv8 which is a 64-bit 
 # architecture. This filename tells the firmware to boot the processor into 64-bit mode.
 
+# # 
 kernel.img: linker.ld $(OBJ_FILES)
-	$(ARMGNU)-ld -T linker.ld -o $(BUILD_DIR)/kernel.elf $(OBJ_FILES)
-	$(ARMGNU)-objcopy $(BUILD_DIR)/kernel.elf -O binary $(BUILD_DIR)/kernel.img
 	mkdir -p $(OUTDIR)
+	$(ARMGNU)-ld -Map $(OUTDIR)/kernel.map -T linker.ld -o $(BUILD_DIR)/kernel.elf $(OBJ_FILES)
+	$(ARMGNU)-objcopy $(BUILD_DIR)/kernel.elf -O binary $(BUILD_DIR)/kernel.img
 	cp $(BUILD_DIR)/kernel.img $(OUTDIR)/kernel.img
 
 loader.img:
