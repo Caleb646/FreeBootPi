@@ -24,6 +24,7 @@ primary_cpu_start: //
     // Set stack to start below our code
     ldr     x1, =_start
     mov     sp, x1
+    b loader_entry
 
     bss_clear: //
         ldr     x1, =__bss_start
