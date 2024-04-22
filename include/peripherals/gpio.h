@@ -2,12 +2,11 @@
 #define	_P_GPIO_H
 
 #include "base.h"
-#include "peripherals/base.h"
 
 // Physical Address with Low Peripheral mode disabled is: 0x4_7C00_0000
 // GPIO Physical Address with Low Peripheral mode disabled is: 0x4_7E20_0000
 // Subtracting 0x4_7E20_0000 - 0x4_7C00_0000 = 0x220_0000
-#define GPIO_BASE        PBASE + 0x2200000
+#define GPIO_BASE       (PBASE + 0x2200000)
 #define GPFSEL0         (GPIO_BASE + 0x00)
 // Determines the alternate function of GPIO pins 13-19
 #define GPFSEL1         (GPIO_BASE + 0x04)

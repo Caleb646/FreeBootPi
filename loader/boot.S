@@ -1,40 +1,68 @@
 .section ".text.boot"  // Make sure the linker puts this at the start of the kernel image
 
 .global _start  
-_start: // Execution Starts Here
-
-setup: // Main Core Setup
-    ldr     x1, =0x80000
-    ldr     x2, =_start
-    ldr     w3, =__loader_size
-inner:  //
-    ldrb    x4, [x1], #1 // ldrb = Load unsigned Byte
-    strb    x4, [x2], #1 // strb = Store unsigned Byte
-    sub     w3, w3, #1
-    cbnz    w3, inner + 2048 // Loader Max Size
-    b relocated_entry
-
-relocated_entry: //
-    // Check processor ID is zero (executing on main core), else hang
+_start: //
+    // Check processor ID is zero, else hang
     mrs     x1, mpidr_el1
     and     x1, x1, #3
-    cbz     x1, setup
+    // Core 0 copies and relocates the loader
+    cbz     x1, relocate_loader
+    b secondary_cpu_start
+
+    relocate_loader: //
+        ldr     x1, =0x80000
+        ldr     x2, =_start
+        ldr     w3, =__loader_size
+    relocate_loader_inner:  //
+        ldrb    x4, [x1], #1 // ldrb = Load unsigned Byte
+        strb    x4, [x2], #1 // strb = Store unsigned Byte
+        sub     w3, w3, #1
+        cbnz    w3, relocate_loader_inner
+    b primary_cpu_start
+
+primary_cpu_start: //
     // Set stack to start below our code
     ldr     x1, =_start
     mov     sp, x1
 
-// Jump to our main() routine in C (make sure it doesn't return)
-loader_entry: //
-    ldr     x0, =__loader_size
-    ldr     x1, =loader_main
-    sub     x1, x1, x0
-    br      x1
-    // In case it does return, halt the master core too
-    b       spin
+    bss_clear: //
+        ldr     x1, =__bss_start
+        ldr     x2, =__bss_size
+    bss_clear_inner:  //
+        mov     x3, #0 // ldrb = Load unsigned Byte
+        strb    x3, [x1], #1 // strb = Store unsigned Byte
+        sub     x2, x2, #1
+        cbnz    x2, bss_clear_inner
 
-spin: // Hang
+    // https://github.com/raspberrypi/tools/blob/master/armstubs/armstub8.S
+    // The Raspberry Pi armsub8.S will run before the _start function.
+    // This stub has cores 1 to 3 suspended waiting on a 64 bit value to have
+    // an address written to it.
+    // The stub also enables the GIC and puts us in Exception Level 2
+
+    // Can't leave the secondary cpus spinning in the current
+    // address space because it will be overwritten. So they need
+    // to be moved to the relocated secondary_cpu_start
+    // sev wakes up all cores which were suspended with a wfe
+    // instruction.
+    // sev 
+
+    // Load absolute address of loader_main (C entry function)
+    // Absolute address is (0x8000 - MAX_LOADER_SIZE)
+    ldr     x1, =loader_main
+    blr     x1
+    // In case it does return, halt the master core too
+    b       hang
+
+secondary_cpu_start: //
     wfe
-    b      spin
+    ldr     x1, =secondary_cpu_start
+    blr     x1
+    ldr     x1, =hang
+    br      x1
+
+hang: //
+    b hang
 
 
 // #include "mm.h"
