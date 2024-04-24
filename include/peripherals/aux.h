@@ -1,7 +1,7 @@
 #ifndef _AUX_H
 #define _AUX_H
 
-#include "peripherals/base.h"
+#include "base.h"
 
 // Physical Address with Low Peripheral mode disabled is: 0x4_7C00_0000
 // Mini UART Physical Address with Low Peripheral mode disabled is: 0x4_7E21_5000

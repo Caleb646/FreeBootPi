@@ -1,7 +1,7 @@
 #ifndef _UART_H
 #define _UART_H
 
-#include "peripherals/base.h"
+#include "base.h"
 #include "peripherals/gpio.h"
 #include "peripherals/aux.h"
 

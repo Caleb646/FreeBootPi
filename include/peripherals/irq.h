@@ -1,7 +1,7 @@
 #ifndef	_P_IRQ_H
 #define	_P_IRQ_H
 
-#include "peripherals/base.h"
+#include "base.h"
 
 // Raspberry Pi 4b
 // Manuals:
