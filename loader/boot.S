@@ -10,11 +10,6 @@ _start: //
     // Check processor ID is zero, else hang
     mrs     x1, mpidr_el1
     and     x1, x1, #3
-
-    // TODO: Temporary
-    // cbz     x1, primary_cpu_start
-    // b       secondary_cpu_start
-
     // Core 0 copies and relocates the loader
     cbz     x1, relocate_loader
     b       secondary_cpu_start
@@ -24,8 +19,10 @@ _start: //
         ldr     x2, =_start
         ldr     x3, =__loader_size
     relocate_loader_inner:  //
-        ldr     x4, [x1], #8 // ldrb = Load unsigned Byte
-        str     x4, [x2], #8 // strb = Store unsigned Byte
+        // Every section is 8 byte aligned. Determined in the linker
+        // script
+        ldr     x4, [x1], #8 
+        str     x4, [x2], #8
         subs    x3, x3, #8
         b.gt    relocate_loader_inner
     b primary_cpu_start
