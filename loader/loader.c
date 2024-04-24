@@ -75,7 +75,7 @@ void loader_main(void)
     while (1) 
     {
         uart_send_string("Hello\r\n");
-        delay(500);
+        delay(10000);
     }
 
     restart:

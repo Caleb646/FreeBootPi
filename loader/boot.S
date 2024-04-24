@@ -10,34 +10,39 @@ _start: //
     // Check processor ID is zero, else hang
     mrs     x1, mpidr_el1
     and     x1, x1, #3
+
+    // TODO: Temporary
+    // cbz     x1, primary_cpu_start
+    // b       secondary_cpu_start
+
     // Core 0 copies and relocates the loader
     cbz     x1, relocate_loader
-    b secondary_cpu_start
+    b       secondary_cpu_start
 
     relocate_loader: //
         ldr     x1, =0x80000
         ldr     x2, =_start
-        ldr     w3, =__loader_size
+        ldr     x3, =__loader_size
     relocate_loader_inner:  //
-        ldrb    w4, [x1], #1 // ldrb = Load unsigned Byte
-        strb    w4, [x2], #1 // strb = Store unsigned Byte
-        sub     w3, w3, #1
-        cbnz    w3, relocate_loader_inner
+        ldr     x4, [x1], #8 // ldrb = Load unsigned Byte
+        str     x4, [x2], #8 // strb = Store unsigned Byte
+        subs    x3, x3, #8
+        b.gt    relocate_loader_inner
     b primary_cpu_start
 
 primary_cpu_start: //
     // Set stack to start below the relocated loader
     ldr     x1, =_start
     mov     sp, x1
+    b bss_clear
 
     bss_clear: //
-        ldr     x1, =__bss_start
-        ldr     x2, =__bss_size
+         ldr     x1, =__bss_start
+         ldr     x2, =__bss_size
     bss_clear_inner:  //
-        mov     x3, #0 // ldrb = Load unsigned Byte
-        strb    w3, [x1], #1 // strb = Store unsigned Byte
-        sub     x2, x2, #1
-        cbnz    x2, bss_clear_inner
+         str     xzr, [x1], #8 // 
+         subs    x2, x2, #8
+         b.gt    bss_clear_inner
 
     // https://github.com/raspberrypi/tools/blob/master/armstubs/armstub8.S
     // The Raspberry Pi armsub8.S will run before the _start function.

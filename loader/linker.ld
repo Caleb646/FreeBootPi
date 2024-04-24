@@ -2,14 +2,14 @@
 SECTIONS
 {
     PROVIDE(__MAX_LOADER_SIZE = 2048); /* 2 KB*/
-
-    . = 0x80000 - __MAX_LOADER_SIZE;     /* Kernel load address for AArch64 */
+    . = ALIGN(0x8);
+    . = 0x80000 - __MAX_LOADER_SIZE; 
     PROVIDE(__loader_start = .);
     .text : { KEEP(*(.text.boot)) *(.text .text.* .gnu.linkonce.t*) }
     .rodata : { *(.rodata .rodata.* .gnu.linkonce.r*) }
     .data : { *(.data .data.* .gnu.linkonce.d*) }
     .bss (NOLOAD) : {
-        . = ALIGN(16);
+        /*. = ALIGN(16);*/
         __bss_start = .;
         *(.bss .bss.*)
         *(COMMON)
