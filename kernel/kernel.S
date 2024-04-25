@@ -1,4 +1,5 @@
-#include "entry.h"
+#include "kernel.h"
+#include "arm/sysregs.h"
 
     // 1st argument x0: type is the interrupt type
     // 2nd argument x1: is the Exception Syndrome Register. 
@@ -17,7 +18,7 @@
     // jump to a label that is provided for the 
     // macro as label argument. We need .align 7 instruction 
     // because all exception vectors should be located at offset 0x80 bytes one from another.
-	.macro	ventry	label
+	.macro	ventry label
 	.align	7
 	b	\label
 	.endm
@@ -68,12 +69,101 @@
 	.endm
 
 
+.globl irq_vector_init
+irq_vector_init: //
+	adr	x0, vectors // load VBAR_EL1 with virtual
+	msr	vbar_el1, x0 // vector table address
+	ret
+
+// responsible for unmasking interrupts
+// Unmasks the I bit for IRQs, hence #2
+.globl enable_irq
+enable_irq: //
+	msr daifclr, #2 
+	ret
+
+// responsible for masking interrupts
+// Masks the I bit for IRQs, hence #2
+.globl disable_irq
+disable_irq: //
+	msr	daifset, #2
+	ret
+
+.globl get_exception_lvl
+get_exception_lvl: //
+	mrs x0, CurrentEL 
+	// Use mrs instruction to read the value from CurrentEL system register into x0 register. 
+	// shift this value 2 bits to the right 
+	// (1st 2 bits in the CurrentEL register are reserved and always have value 0)
+    lsr x0, x0, #2
+	// in the register x0 there is an integer number indicating current exception level.
+    ret
+
+.globl put32
+put32: //
+	str w1, [x0] ; // store the value in w1 (32 bit reg) at the location in x0 (64 bit reg)
+	ret
+
+.globl get32
+get32: //
+	ldr w0, [x0] ; // load value at address in x0 into w0
+	ret
+
+.globl delay
+delay: //
+	subs x0, x0, #1
+	bne delay
+	ret
+
+.section ".text.boot" 
+.global _start  
+_start: //
+	// Loader starts us:
+	// At 0x80000
+	// In EL2
+	// Cores 1-3 are suspended
+	mov	sp, __EL2_stack_core0	    // EL2 stack set 
+	msr	sp_el1, __EL1_stack_core0	// EL1 stack set
+	msr	sp_el0, __EL0_stack_core0	// EL0 stack set
+	// Disable MMU for EL1 & EL0
+	ldr	x0, =SCTLR_EL1_VALUE
+	msr	sctlr_el1, x0
+	// Hypervisor Configuration Register for EL2
+	ldr	x0, =HCR_EL2_VALUE
+	msr	hcr_el2, x0
+	// Disable (Mask) DAIF Interrupts
+	// Set on exception to use EL1 stack NOT EL0 stack
+	ldr x0, =SPSR_EL2_VALUE
+    msr spsr_el2, x0
+	// Change from EL2 to EL1
+	adr	x0, el1_entry		
+	msr	elr_el2, x0
+	eret
+
+el1_entry: //
+
+	ldr x0, =vector_table						
+    msr vbar_el1, x0
+
+	bss_clear: //
+         ldr     x1, =__bss_start
+         ldr     x2, =__bss_size
+    bss_clear_inner:  //
+         str     xzr, [x1], #8
+         subs    x2, x2, #8
+         b.gt    bss_clear_inner
+
+	bl kernel_main
+	b err_hang
+
+
+
 /*
  * Exception vectors.
  */
 .align	11
-.globl vectors 
-vectors:
+.globl vector_table 
+vector_table: //
 	ventry	sync_invalid_el1t	 // Synchronous EL1t
 	ventry	irq_invalid_el1t	 // IRQ EL1t
 	ventry	fiq_invalid_el1t	 // FIQ EL1t
@@ -145,4 +235,5 @@ el1_irq:
 	exception_handler_exit 
 
 .globl err_hang
-err_hang: b err_hang
+err_hang: //
+	b err_hang

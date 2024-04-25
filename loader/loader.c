@@ -102,4 +102,6 @@ void loader_main(void)
     typedef void (*entry_fn)();
     entry_fn fn = (entry_fn)KERNEL_LOAD_ADDR;
     fn();
+    // Should never come here
+    return;
 }
