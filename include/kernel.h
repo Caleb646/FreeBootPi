@@ -29,14 +29,20 @@
 #define PAGE_SIZE (1 << PAGE_SHIFT)	
 #define SECTION_SIZE (1 << SECTION_SHIFT)	
 
-void enable_interrupt_controller(void);
-void irq_vector_init(void);
-void enable_irq(void);
-void disable_irq(void);
 
-extern void delay(unsigned long);
-extern void put32(unsigned long, unsigned int);
-extern unsigned int get32(unsigned long);
-extern int get_exception_lvl(void);
+#ifndef __ASSEMBLER__
+#include "base.h"
+
+u32 gic_get_cpu_id(void);
+void gic_enable_interrupt(u32 irq);
+void gic_assign_target(u32 irq_id, u32 gic_cpu_id);
+void gic_enable();
+
+void delay(u64);
+void put32(u64, u32);
+u32 get32(u64);
+int get_exception_lvl(void);
+
+#endif // __ASSEMBLER__
 
 #endif // _KERNEL_H

@@ -68,13 +68,6 @@
 	eret
 	.endm
 
-
-.globl irq_vector_init
-irq_vector_init: //
-	adr	x0, vectors // load VBAR_EL1 with virtual
-	msr	vbar_el1, x0 // vector table address
-	ret
-
 // responsible for unmasking interrupts
 // Unmasks the I bit for IRQs, hence #2
 .globl enable_irq
@@ -122,9 +115,12 @@ _start: //
 	// At 0x80000
 	// In EL2
 	// Cores 1-3 are suspended
-	mov	sp, __EL2_stack_core0	    // EL2 stack set 
-	msr	sp_el1, __EL1_stack_core0	// EL1 stack set
-	msr	sp_el0, __EL0_stack_core0	// EL0 stack set
+	ldr x0, =__EL2_stack_core0
+	ldr x1, =__EL1_stack_core0
+	ldr x2, =__EL0_stack_core0
+	mov	sp, x0	    // EL2 stack set 
+	msr	sp_el1, x1	// EL1 stack set
+	msr	sp_el0, x2	// EL0 stack set
 	// Disable MMU for EL1 & EL0
 	ldr	x0, =SCTLR_EL1_VALUE
 	msr	sctlr_el1, x0
