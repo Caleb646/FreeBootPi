@@ -1,4 +1,4 @@
-#include "uart.h"
+#include "peripherals/uart.h"
 #include "base.h"
 
 #define MOD_REG(addr) *((u32 volatile *)addr)

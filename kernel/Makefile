@@ -95,6 +95,7 @@ ASMOPS = -I../include
 BUILD_DIR = ../build/loader
 OUTDIR = ../out
 SRC_DIR = ""
+SRC_DIR += peripherals
 
 .PHONY: all
 all: kernel.img

@@ -1,9 +1,9 @@
 #include "base.h"
-#include "uart.h"
 #include "printf.h"
-#include "timer.h"
 #include "kernel.h"
+#include "peripherals/timer.h"
 #include "peripherals/gic.h"
+#include "peripherals/uart.h"
 #include "arm/sysregs.h"
 
 const char* entry_error_messages[] = {

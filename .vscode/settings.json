@@ -1,5 +1,10 @@
 {
     "files.associations": {
-        "chrono": "c"
+        "chrono": "c",
+        "gic.h": "c",
+        "uart.h": "c",
+        "kernel.h": "c",
+        "timer.h": "c",
+        "vidcore.h": "c"
     }
 }

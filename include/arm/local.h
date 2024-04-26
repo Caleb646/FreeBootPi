@@ -22,12 +22,18 @@
 // Controls the routing of the mailbox interrupts to an ARM core’s IRQ or FIQ interrupt request pins. Each
 // ARM can receive interrupts from four of the sixteen mailbox registers. For ARM core 0, these are mailboxes 0-3; for
 // ARM core 1, mailboxes 4-7 and so on.
-// Bits [3 to 0] --- When set to 1, causes the mailbox 4C+3 for ARM core number C, to trigger an IRQ
-// interrupt when any bit is set in the mailbox. 
 #define ARM_LOCAL_MAILBOX_CNTRL0        (ARM_LOCAL_BASE + 0x50) // Mailbox Interrupt Control for ARM Core 0
 #define ARM_LOCAL_MAILBOX_CNTRL1        (ARM_LOCAL_BASE + 0x54) // Mailbox Interrupt Control for ARM Core 1
 #define ARM_LOCAL_MAILBOX_CNTRL2        (ARM_LOCAL_BASE + 0x58) // Mailbox Interrupt Control for ARM Core 2
 #define ARM_LOCAL_MAILBOX_CNTRL3        (ARM_LOCAL_BASE + 0x5c) // Mailbox Interrupt Control for ARM Core 3
+// When set to 1, causes the mailbox 4C+3 for ARM core number C, to trigger an IRQ interrupt when any bit is set in the mailbox. 
+#define ARM_LOCAL_MBOX3_IRQ_BIT         (1 << 3) // Example: set irq for mailbox 3 for core 0 or set irq for mailbox 7 for core 1
+// When set to 1, causes the mailbox 4C+2 for ARM core number C, to trigger an IRQ interrupt when any bit is set in the mailbox.
+#define ARM_LOCAL_MBOX2_IRQ_BIT         (1 << 2) // Example: set irq for mailbox 2 for core 0 or set irq for mailbox 6 for core 1
+// When set to 1, causes the mailbox 4C+1 for ARM core number C, to trigger an IRQ interrupt when any bit is set in the mailbox.
+#define ARM_LOCAL_MBOX1_IRQ_BIT         (1 << 1) // Example: set irq for mailbox 1 for core 0 or set irq for mailbox 5 for core 1
+// When set to 1, causes the mailbox 4C+0 for ARM core number C, to trigger an IRQ interrupt when any bit is set in the mailbox.
+#define ARM_LOCAL_MBOX0_IRQ_BIT         (1 << 0) // Example: set irq for mailbox 0 for core 0 or set irq for mailbox 4 for core 1
 
 #define ARM_LOCAL_IRQ_SOURCE0           (ARM_LOCAL_BASE + 0x60) // IRQ Source flags for ARM Core 0
 #define ARM_LOCAL_IRQ_SOURCE1           (ARM_LOCAL_BASE + 0x64) // IRQ Source flags for ARM Core 1
