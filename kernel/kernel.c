@@ -40,11 +40,10 @@ u32 gic_get_cpu_id(void)
 
 void gic_enable_interrupt(u32 irq) 
 {
-	LOG_DEBUG("%x", irq);
 	u32 int_reg_id = irq / 32;
 	u32 bit_offset = irq % 32;
 	u64 enable_register = GICD_ISENABLERn(int_reg_id);
-	LOG_DEBUG("EnableRegister: %u", enable_register);
+	LOG_DEBUG("Enabling interrupt [%u] with register [%u]", irq, int_reg_id);
 	put32(enable_register, get32(enable_register) | (1 << bit_offset));
 }
 
@@ -74,8 +73,8 @@ void gic_assign_target(u32 irq_id, u32 gic_cpu_id)
 
 void gic_enable() 
 {	
-	gic_assign_target(SYSTEM_TIMER_IRQ_1, gic_get_cpu_id());
-	gic_enable_interrupt(SYSTEM_TIMER_IRQ_1);
+	gic_assign_target(VC_SYSTEM_TIMER_IRQ_1, gic_get_cpu_id());
+	gic_enable_interrupt(VC_SYSTEM_TIMER_IRQ_1);
 }
 
 void show_invalid_entry_message(s32 type, u32 esr, u32 address) 
@@ -89,9 +88,10 @@ void handle_irq(void)
 	u32 irq = irq_ack_reg & 0x2FF;
 	switch (irq) 
 	{
-		case (SYSTEM_TIMER_IRQ_1):
+		case (VC_SYSTEM_TIMER_IRQ_1):
 			//handle_timer_irq();
 			put32(GICC_EOIR, irq_ack_reg);
+			LOG_DEBUG("Received VC Timer Interrupt");
 			break;
 		default:
 			LOG_ERROR("Unknown pending irq: %x", irq);
@@ -103,8 +103,10 @@ void handle_irq(void)
 void kernel_main(void)
 {
 	init_printf(0, putc);
-	gic_enable();
 	enable_irq();
+	// armstub8.S sets all interrupts to group 1 (non-secure irqs)
+	// and enables the GICD and each GICC for ALL cores
+	gic_enable();
     while (1) 
 	{
         uart_send_string("Hello from Kernel\r\n");
