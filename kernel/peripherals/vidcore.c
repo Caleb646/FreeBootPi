@@ -1,5 +1,8 @@
 #include "peripherals/vidcore.h"
 
+// The alignment attribute specifies the alignment of variables or structure fields, not single array elements.
+u32 volatile __attribute__((aligned(16))) vid_core_buffer[36];
+
 // https://github.com/raspberrypi/firmware/wiki/Mailbox-property-interface
 s32 vid_core_call(u32 volatile* buffer, u8 vid_core_channel)
 {

@@ -42,7 +42,7 @@
 
 s32 vid_core_call(u32 volatile* buffer, u8 vid_core_channel);
 
-// extern u32 volatile vid_core_buffer[36];
-// extern u8 volatile* frame_buffer;
+#define VID_CORE_BUFFER_SIZE 36
+extern u32 volatile vid_core_buffer[VID_CORE_BUFFER_SIZE];
 
 #endif  /*_VIDCORE_H */

@@ -2,8 +2,6 @@
 #include "printf.h"
 #include "peripherals/vidcore.h"
 
-// The alignment attribute specifies the alignment of variables or structure fields, not single array elements.
-u32 volatile __attribute__((aligned(16))) vid_core_buffer[36];
 u32* frame_buffer;
 u32 phy_width, phy_height, virt_width, virt_height, bytes_per_line, pix_order /* RGBA or BGRA ....*/; 
 
