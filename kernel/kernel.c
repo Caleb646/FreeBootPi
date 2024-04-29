@@ -71,10 +71,58 @@ void gic_assign_target(u32 irq_id, u32 gic_cpu_id)
 	put32(reg, get32(reg) | (1 << (gic_cpu_id + offsets[bit_offset])));
 }
 
-void gic_enable() 
+void gic_enable(void) 
 {	
 	gic_assign_target(VC_SYSTEM_TIMER_IRQ_1, gic_get_cpu_id());
 	gic_enable_interrupt(VC_SYSTEM_TIMER_IRQ_1);
+}
+
+static u32 volatile s_ncritical_lvl = 0;
+static u64 volatile s_int_flags[MAX_NESTED_INTERRUPTS];
+/*
+* \brief	Returns ARM core interrupt status
+* \return	
+* 0 is not masked (enabled) & 1 is masked (disabled)
+* Bit 9 = Watchpoint, Breakpoint, and Software Step exceptions 
+* Bit 8 = SError exception
+* Bit 7 = IRQ mask
+* Bit 6 = FIQ mask
+*/
+u64 get_daif_flags(void)
+{
+	u64 flags;
+	asm volatile ("mrs %0, daif" : "=r" (flags));
+	return flags;
+}
+
+void set_daif_flags(u64 flags)
+{
+	asm volatile ("msr daif, %0" :: "r" (flags));
+}
+
+s32 enter_critical(u32 target_lvl)
+{
+	u64 flags = get_daif_flags();
+	if(s_ncritical_lvl >= MAX_NESTED_INTERRUPTS)
+	{
+		return 0;
+	}
+	// Save DAIF flags to be restored on leaving interrupt
+	s_int_flags[s_ncritical_lvl++] = flags;
+	DISABLE_IRQ_FIQ;
+	return 1;
+}
+
+s32 leave_critical(void)
+{
+	if(s_ncritical_lvl <= 0)
+	{
+		return 0;
+	}
+	// restore saved daif flags
+	u64 flags = s_int_flags[--s_ncritical_lvl];
+	set_daif_flags(flags);
+	return 1;
 }
 
 void show_invalid_entry_message(s32 type, u32 esr, u32 address) 

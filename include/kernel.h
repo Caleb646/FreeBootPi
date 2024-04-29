@@ -33,15 +33,34 @@
 #ifndef __ASSEMBLER__
 #include "base.h"
 
+/********************** GIC Interrupts ***************************/
 u32 gic_get_cpu_id(void);
-void gic_enable_interrupt(u32 irq);
+void gic_enable_interrupt(u32 irq_id);
 void gic_assign_target(u32 irq_id, u32 gic_cpu_id);
-void gic_enable();
+void gic_enable(void);
 
 void delay(u64);
 void put32(u64, u32);
 u32 get32(u64);
-int get_exception_lvl(void);
+u32 get_exception_lvl(void);
+
+/********************** ARM Interrupts ***************************/
+#define IRQ_BIT (1 << 7)
+#define FIQ_BIT (1 << 6)
+#define ENABLE_IRQ          asm volatile ("msr daifset, #2")
+#define DISABLE_IRQ         asm volatile ("msr daifclr, #2")
+#define ENABLE_FIQ          asm volatile ("msr daifset, #1")
+#define DISABLE_FIQ         asm volatile ("msr daifclr, #1")
+#define ENABLE_IRQ_FIQ      asm volatile ("msr daifset, #3")
+#define DISABLE_IRQ_FIQ     asm volatile ("msr daifclr, #3")
+#define MAX_NESTED_INTERRUPTS 24
+u64 get_daif_flags(void);
+void set_daif_flags(u64);
+s32 enter_critical(u32 target_lvl);
+s32 leave_critical(void);
+
+/********************** Synchronization ***************************/
+
 
 #endif // __ASSEMBLER__
 
