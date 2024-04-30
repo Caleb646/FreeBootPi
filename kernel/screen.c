@@ -1,7 +1,7 @@
 #include "screen.h"
 #include "printf.h"
 #include "peripherals/vidcore.h"
-
+ 
 u32* frame_buffer;
 u32 phy_width, phy_height, virt_width, virt_height, bytes_per_line, pix_order /* RGBA or BGRA ....*/; 
 

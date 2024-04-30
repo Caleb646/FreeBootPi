@@ -68,30 +68,6 @@
 	eret
 	.endm
 
-// responsible for unmasking interrupts
-// Unmasks the I bit for IRQs, hence #2
-.globl enable_irq
-enable_irq: //
-	msr daifclr, #2 
-	ret
-
-// responsible for masking interrupts
-// Masks the I bit for IRQs, hence #2
-.globl disable_irq
-disable_irq: //
-	msr	daifset, #2
-	ret
-
-.globl get_exception_lvl
-get_exception_lvl: //
-	mrs x0, CurrentEL 
-	// Use mrs instruction to read the value from CurrentEL system register into x0 register. 
-	// shift this value 2 bits to the right 
-	// (1st 2 bits in the CurrentEL register are reserved and always have value 0)
-    lsr x0, x0, #2
-	// in the register x0 there is an integer number indicating current exception level.
-    ret
-
 .globl put32
 put32: //
 	str w1, [x0] ; // store the value in w1 (32 bit reg) at the location in x0 (64 bit reg)

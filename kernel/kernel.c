@@ -77,8 +77,26 @@ void gic_enable(void)
 	gic_enable_interrupt(VC_SYSTEM_TIMER_IRQ_1);
 }
 
-static u32 volatile s_ncritical_lvl = 0;
-static u64 volatile s_int_flags[MAX_NESTED_INTERRUPTS];
+u64 get_arm_core_id(void)
+{
+	u64 core_id;
+	asm volatile ("mrs %0, mpidr_el1" : "=r" (core_id));
+	return core_id & 0x3;
+}
+
+u64 get_arm_exception_lvl(void)
+{
+	u64 lvl;
+	asm volatile(
+		"mrs x0, CurrentEL" 
+    	"lsr x0, x0, #2"
+		"str x0 %0"
+		: "=r" (lvl)
+		);
+}
+
+static u32 volatile s_ncritical_lvl[ARM_NUM_CORES];
+static u64 volatile s_int_flags[ARM_NUM_CORES][MAX_NESTED_INTERRUPTS];
 /*
 * \brief	Returns ARM core interrupt status
 * \return	
@@ -103,24 +121,32 @@ void set_daif_flags(u64 flags)
 s32 enter_critical(u32 target_lvl)
 {
 	u64 flags = get_daif_flags();
-	if(s_ncritical_lvl >= MAX_NESTED_INTERRUPTS)
+	u64 core_id = get_arm_core_id();
+	if(s_ncritical_lvl[core_id] >= MAX_NESTED_INTERRUPTS)
 	{
 		return 0;
 	}
-	// Save DAIF flags to be restored on leaving interrupt
-	s_int_flags[s_ncritical_lvl++] = flags;
+	// Save DAIF flags to be restored after leaving interrupt
+	s_int_flags[core_id][s_ncritical_lvl[core_id]++] = flags;
 	DISABLE_IRQ_FIQ;
+
+	// Ensure all load/store operations are finished before returning
+	DATA_MEMORY_BARRIER;
 	return 1;
 }
 
 s32 leave_critical(void)
 {
-	if(s_ncritical_lvl <= 0)
+	// Ensure all load/store operations have finished before entering
+	DATA_MEMORY_BARRIER;
+
+	u64 core_id = get_arm_core_id();
+	if(s_ncritical_lvl[core_id] <= 0)
 	{
 		return 0;
 	}
-	// restore saved daif flags
-	u64 flags = s_int_flags[--s_ncritical_lvl];
+	// restore saved DAIF flags
+	u64 flags = s_int_flags[core_id][--s_ncritical_lvl[core_id]];
 	set_daif_flags(flags);
 	return 1;
 }

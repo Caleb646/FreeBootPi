@@ -5,6 +5,7 @@
         "uart.h": "c",
         "kernel.h": "c",
         "timer.h": "c",
-        "vidcore.h": "c"
+        "vidcore.h": "c",
+        "regex": "c"
     }
 }
