@@ -1,5 +1,6 @@
 **build**
 **arm_toolchain**
+**out**
 
 # Prerequisites
 *.d

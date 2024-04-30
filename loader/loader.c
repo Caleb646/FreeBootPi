@@ -71,13 +71,12 @@ static void delay(u32 cycles)
 void loader_main(void)
 {
     mini_uart_init();
-    while (1) 
-    {
-        uart_send_string("Hello\r\n");
-        delay(10000);
-    }
+    // while (1) 
+    // {
+    //     uart_send_string("Hello\r\n");
+    //     delay(10000);
+    // }
 
-    restart:
     uart_send_string("Beginning Kernel Loading Process");
     // request kernel by sending 3 breaks
     uart_send_string("\x03\x03\x03");

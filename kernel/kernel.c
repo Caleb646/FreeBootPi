@@ -88,11 +88,12 @@ u64 get_arm_exception_lvl(void)
 {
 	u64 lvl;
 	asm volatile(
-		"mrs x0, CurrentEL" 
-    	"lsr x0, x0, #2"
-		"str x0 %0"
+		"mrs x0, CurrentEL\n" 
+    	"lsr x0, x0, #2\n"
+		"str x0, [%0]\n"
 		: "=r" (lvl)
 		);
+	return lvl;
 }
 
 static u32 volatile s_ncritical_lvl[ARM_NUM_CORES];
@@ -183,7 +184,7 @@ void handle_irq(void)
 void kernel_main(void)
 {
 	init_printf(0, putc);
-	enable_irq();
+	ENABLE_IRQ();
 	// armstub8.S sets all interrupts to group 1 (non-secure irqs)
 	// and enables the GICD and each GICC for ALL cores
 	gic_enable();
