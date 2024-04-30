@@ -96,7 +96,7 @@ void loader_main(void)
     }
 
     // Kernel is loaded at 0x8000, call it via function pointer
-    uart_send_string("Booting");
+    uart_send_string("Booting to Kernel");
     typedef void (*entry_fn)();
     entry_fn fn = (entry_fn)KERNEL_LOAD_ADDR;
     fn();
