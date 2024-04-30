@@ -54,18 +54,21 @@ u64 get_arm_exception_lvl(void);
 #define ARM_SEC_CORE_SPIN_BASE  0xD8 /* https://github.com/raspberrypi/tools/blob/master/armstubs/armstub8.S */
 
 /********************** ARM Memory ***************************/
-#define DATA_MEMORY_BARRIER     asm volatile("dbm" ::: "memory")
+/* ISH --- Operation only to the Inner Shareable domain (i.e. visible to all or some cores) */
+#define DATA_MEMORY_BARRIER_INNER_ANY()         asm volatile("dbm ISH" ::: "memory")
+/* NSH --- Operation only out to the point of unification (i.e. visible to this core)  */
+#define DATA_MEMORY_BARRIER_NOSHARE_ANY()       asm volatile("dbm NSH" ::: "memory")
 
 /********************** ARM Interrupts ***************************/
-#define IRQ_BIT                 (1 << 7)
-#define FIQ_BIT                 (1 << 6)
-#define ENABLE_IRQ              asm volatile ("msr daifset, #2")
-#define DISABLE_IRQ             asm volatile ("msr daifclr, #2")
-#define ENABLE_FIQ              asm volatile ("msr daifset, #1")
-#define DISABLE_FIQ             asm volatile ("msr daifclr, #1")
-#define ENABLE_IRQ_FIQ          asm volatile ("msr daifset, #3")
-#define DISABLE_IRQ_FIQ         asm volatile ("msr daifclr, #3")
-#define MAX_NESTED_INTERRUPTS   12
+#define IRQ_BIT                     (1 << 7)
+#define FIQ_BIT                     (1 << 6)
+#define ENABLE_IRQ()                asm volatile ("msr daifset, #2")
+#define DISABLE_IRQ()               asm volatile ("msr daifclr, #2")
+#define ENABLE_FIQ()                asm volatile ("msr daifset, #1")
+#define DISABLE_FIQ()               asm volatile ("msr daifclr, #1")
+#define ENABLE_IRQ_FIQ()            asm volatile ("msr daifset, #3")
+#define DISABLE_IRQ_FIQ()           asm volatile ("msr daifclr, #3")
+#define MAX_NESTED_INTERRUPTS       12
 
 u64 get_daif_flags(void);
 void set_daif_flags(u64);

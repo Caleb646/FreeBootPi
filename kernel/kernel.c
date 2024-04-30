@@ -128,17 +128,23 @@ s32 enter_critical(u32 target_lvl)
 	}
 	// Save DAIF flags to be restored after leaving interrupt
 	s_int_flags[core_id][s_ncritical_lvl[core_id]++] = flags;
-	DISABLE_IRQ_FIQ;
+	DISABLE_IRQ_FIQ();
 
-	// Ensure all load/store operations are finished before returning
-	DATA_MEMORY_BARRIER;
+	/*
+	* Ensure all load & store operations are visible to this core
+	* before entering the critical section
+	*/
+	DATA_MEMORY_BARRIER_NOSHARE_ANY();
 	return 1;
 }
 
 s32 leave_critical(void)
 {
-	// Ensure all load/store operations have finished before entering
-	DATA_MEMORY_BARRIER;
+	/* 
+	* Ensure all load & store operations above the leave_critical call 
+	* are visible to this core before exiting the critical section
+	*/
+	DATA_MEMORY_BARRIER_NOSHARE_ANY();
 
 	u64 core_id = get_arm_core_id();
 	if(s_ncritical_lvl[core_id] <= 0)
