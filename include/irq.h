@@ -285,10 +285,27 @@
 
 
 // VC (VideoCore) GIC IRQ Ids: 96 through 159 - (Page 88 and 90 of BCM2711 ARM Peripherals)
-#define VC_BASE_IRQ                 (96)
-#define VC_SYSTEM_TIMER_IRQ_0       (VC_BASE_IRQ + 0) //96
-#define VC_SYSTEM_TIMER_IRQ_1       (VC_BASE_IRQ + 1) //97
-#define VC_SYSTEM_TIMER_IRQ_2       (VC_BASE_IRQ + 2) //98
-#define VC_SYSTEM_TIMER_IRQ_3       (VC_BASE_IRQ + 3) //99
+#define VC_GIC_BASE_IRQ                 (96)
+#define VC_GIC_SYSTEM_TIMER_IRQ_0       (VC_GIC_BASE_IRQ + 0) //96
+#define VC_GIC_SYSTEM_TIMER_IRQ_1       (VC_GIC_BASE_IRQ + 1) //97
+#define VC_GIC_SYSTEM_TIMER_IRQ_2       (VC_GIC_BASE_IRQ + 2) //98
+#define VC_GIC_SYSTEM_TIMER_IRQ_3       (VC_GIC_BASE_IRQ + 3) //99
+
+#define GIC_NUM_INTERRUPTS 256
+
+#ifndef __ASSEMBLER__
+
+extern irq_handler_t gic_irq_handlers[ARM_NUM_CORES][GIC_NUM_INTERRUPTS];
+
+u32 gic_get_cpu_id(void);
+void gic_enable_interrupt(u32 irq, irq_handler_t handler);
+void gic_assign_target(u32 irq_id, u32 gic_cpu_id);
+void gic_general_irq_handler(u32 irq_id);
+void gic_init(void);
+
+
+void handle_irq(void);
+
+#endif // __ASSEMBLER__
 
 #endif  /*_P_GIC_H */

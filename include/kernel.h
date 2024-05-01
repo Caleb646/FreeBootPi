@@ -33,22 +33,7 @@
 #ifndef __ASSEMBLER__
 #include "base.h"
 
-/********************** GIC Interrupts ***************************/
-u32 gic_get_cpu_id(void);
-void gic_enable_interrupt(u32 irq_id);
-void gic_assign_target(u32 irq_id, u32 gic_cpu_id);
-void gic_enable(void);
-
 void delay(u64);
-void put32(u64, u32);
-u32 get32(u64);
-
-
-/********************** ARM ***************************/
-#define ARM_NUM_CORES 4
-
-u64 get_arm_core_id(void);
-u64 get_arm_exception_lvl(void);
 
 /********************** ARM Multicore ***************************/
 #define ARM_SEC_CORE_SPIN_BASE  0xD8 /* https://github.com/raspberrypi/tools/blob/master/armstubs/armstub8.S */
