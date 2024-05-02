@@ -1,5 +1,5 @@
-#ifndef	_P_GIC_H
-#define	_P_GIC_H
+#ifndef	_P_IRQ_H
+#define	_P_IRQ_H
 
 #include "base.h"
 
@@ -245,6 +245,12 @@
 // Provides the INTID of the signaled interrupt. A read of this register by the PE acts as an
 // acknowledge for the interrupt.
 // INTID, bits [23:0] The INTID of the signaled interrupt.
+/*
+* When affinity routing is not enabled:
+*   Bits [23:13] are RES0.
+*   For SGIs, bits [12:10] identify the CPU interface corresponding to the source PE. For all
+*       other interrupts these bits are RES0.
+*/
 #define GICC_IAR    (GICC_CPU_BASE + 0x000C) //  RO 0x000003FF Interrupt Acknowledge Register
 
 // A write to this register performs priority drop for the specified interrupt
@@ -263,8 +269,20 @@
 #define GICC_IIDR   (GICC_CPU_BASE + 0x00FC) //   RO 0x0202143B CPU Interface Identification Register, GICC_IIDR on page 3-11
 #define GICC_DIR    (GICC_CPU_BASE + 0x1000) //   WO - Deactivate Interrupt Register
 
+/* 
+* ARM Per Core Interrupt IDs 
+* 6 interrupts per core. Range from 7 to 31
+*/
+#define ARM_CORE_HP_TIMER_IRQ(core_id)      ( (core_id * 4) + 0 + 7 )
+#define ARM_CORE_V_TIMER_IRQ(core_id)       ( (core_id * 4) + 1 + 7 )
+#define ARM_CORE_LEGACY_FIQ(core_id)        ( (core_id * 4) + 2 + 7 )
+#define ARM_CORE_PS_TIMER_IRQ(core_id)      ( (core_id * 4) + 3 + 7 )
+#define ARM_CORE_PNS_TIMER_IRQ(core_id)     ( (core_id * 4) + 4 + 7 )
+#define ARM_CORE_LEGACY_IRQ(core_id)        ( (core_id * 4) + 5 + 7 )
+#define ARM_CORE_IRQID_END                  31
+
 // ARM Local Interrupts
-// ARM Local GIC IRQ Ids: 32 through 47 - (Page 87 and 90 of BCM2711 ARM Peripherals)
+// ARM Local GIC IRQ Ids: 32 through 47 - (Page 89 and 90 of BCM2711 ARM Peripherals)
 #define ARM_LOCAL_IRQ_BASE      (32)
 #define ARM_LOCAL_MBOX_IRQ0     (ARM_LOCAL_IRQ_BASE + 0 )
 #define ARM_LOCAL_MBOX_IRQ1     (ARM_LOCAL_IRQ_BASE + 1 )
@@ -341,4 +359,4 @@ void handle_irq(void);
 
 #endif // __ASSEMBLER__
 
-#endif  /*_P_GIC_H */
+#endif  /*_P_IRQ_H */

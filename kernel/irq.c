@@ -10,7 +10,7 @@ u32 gic_get_cpu_id(void)
 	{
 		LOG_ERROR("Invalid CPU id read from the GIC Distributor: [%u]", target);
 	}
-    LOG_INFO("Arm Core [%u] has GIC Id of [%u]", target);
+    LOG_INFO("Arm Core [%u] has GIC Id of [%u]", get_arm_core_id(), target);
 	return target;
 }
 
@@ -71,7 +71,7 @@ s32 gic_init(void)
             put32(GICD_ICACTIVERn(n), ~0);
         }
         /* 
-        * Set all interrupts priorities to 0 and set every interrupts target to be core 0.
+        * Set all interrupts priorities to 0xA0 and set all interrupt targets to be core 0.
         * Higher interrupt priority corresponds to a lower value of the Priority field.
         * Each 32 bit register holds the priority status for 4 interrupt types. Allowing
         * for 8 bits per interrupt type.
@@ -126,7 +126,7 @@ s32 irq_init(void)
 void handle_irq(void) 
 {
 	u32 irq_ack_reg = get32(GICC_IAR);
-	u32 irq = irq_ack_reg & 0x2FF;
+	u32 irq = irq_ack_reg & 0x3FF;
     if(irq < GIC_NUM_INTERRUPTS)
     {
         gic_irq_handlers[get_arm_core_id()][irq](irq);
