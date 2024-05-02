@@ -29,8 +29,8 @@
 #define VC_SYSTEM_TIMER_IRQID_TO_CO_REG(irq_id) (VC_SYSTEM_TIMER_C0 + (irq_id - VC_GIC_BASE_IRQ) * sizeof(u32))
 /* Bits 0, 1, 2, 3 are for acking timers 0, 1, 2, 3 */
 #define VC_SYSTEM_TIMER_IRQID_TO_MBIT(irq_id) (1 << (irq_id - VC_GIC_BASE_IRQ))
-#define VC_SYSTEM_CLOCK_HZ          1000000
-#define TICKS_PER_SECOND            100
+#define VC_SYSTEM_CLOCK_HZ                          1000000
+#define TIMER_UPDATES_PER_SECOND                    100
 
 #define SECONDS_TO_MS(seconds)      (seconds * 1000)
 #define MS_TO_SECONDS(ms)           (ms / 1000)
@@ -45,14 +45,15 @@ typedef struct timer_s
     u32 irq_id;
 } timer_s;
 
-//extern timer_s timer;
-
+u32 get_arm_local_timer_freq(void);
+void sys_timer_irq_handler(u32 irq_id);
 s32 timer_init(u32);
 u64 get_sys_time_ms(void);
+
+
 void wait_ms(u32);
 
-void sys_timer_irq_handler(u32 irq_id);
 
-u32 get_arm_local_timer_freq(void);
+
 
 #endif  /*_P_TIMER_H */

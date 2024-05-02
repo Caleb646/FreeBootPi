@@ -11,10 +11,10 @@
 // Example: Linux Driver
 // https://github.com/torvalds/linux/blob/v6.9-rc3/drivers/irqchip/irq-gic-v3.c
 // https://github.com/torvalds/linux/blob/v6.9-rc3/include/linux/irqchip/arm-gic-v3.h
-#define GIC_BASE (0xFF840000)
+#define GIC_BASE            (0xFF840000)
 
 /************************* Distributor Registers *********************************/
-#define GICD_DIST_BASE (GIC_BASE + 0x00001000)
+#define GICD_DIST_BASE      (GIC_BASE + 0x00001000)
 
 #define GICD_CTLR           (GICD_DIST_BASE + 0x000) // RW 0x00000000c Distributor Control Register
 #define GICD_CTLR_DISABLE   0x0 /* Value to disable distributor */
@@ -23,8 +23,8 @@
 #define GICD_TYPER          (GICD_DIST_BASE + 0x004) // RO Configuration-dependentd Interrupt Controller Type Register
 #define GICD_IIDR           (GICD_DIST_BASE + 0x008) // RO 0x0200143B Distributor Implementer Identification Register
 
-#define GICD_IGROUPR0 (GICD_DIST_BASE + 0x080) // GICD_IGROUPRn RW 0x00000000 Interrupt Group Registerse
-#define GICD_IGROUPR1 (GICD_DIST_BASE + 0x0BC) // GICD_IGROUPRn RW 0x00000000 Interrupt Group Registerse
+#define GICD_IGROUPR0       (GICD_DIST_BASE + 0x080) // GICD_IGROUPRn RW 0x00000000 Interrupt Group Registerse
+#define GICD_IGROUPR1    (GICD_DIST_BASE + 0x0BC) // GICD_IGROUPRn RW 0x00000000 Interrupt Group Registerse
 
 #define GICD_ISENABLER0  (GICD_DIST_BASE + 0x100) // GICD_ISENABLERn RWf SGIs and PPIs: 0x0000FFFFg Interrupt Set-Enable Registers
 #define GICD_ISENABLER1  (GICD_DIST_BASE + 0x104) // GICD_ISENABLERn RWf SGIs and PPIs: 0x0000FFFFg Interrupt Set-Enable Registers
@@ -344,7 +344,10 @@
 
 #ifndef __ASSEMBLER__
 
-extern irq_handler_t gic_irq_handlers[ARM_NUM_CORES][GIC_NUM_INTERRUPTS];
+// extern irq_handler_t gic_irq_handlers[ARM_NUM_CORES][GIC_NUM_INTERRUPTS];
+
+u64 get_daif_flags(void);
+void set_daif_flags(u64);
 
 u32 gic_get_cpu_id(void);
 void gic_enable_interrupt(u32 irq, irq_handler_t handler);

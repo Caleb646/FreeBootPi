@@ -1,6 +1,8 @@
 #ifndef _KERNEL_H
 #define _KERNEL_H
 
+#include "base.h"
+
 #define S_FRAME_SIZE			256 		// size of all saved registers 
 
 #define SYNC_INVALID_EL1t		0 
@@ -29,27 +31,13 @@
 #define PAGE_SIZE (1 << PAGE_SHIFT)	
 #define SECTION_SIZE (1 << SECTION_SHIFT)	
 
-
-#ifndef __ASSEMBLER__
-#include "base.h"
-
-void delay(u64);
-
 /********************** ARM Multicore ***************************/
 #define ARM_SEC_CORE_SPIN_BASE  0xD8 /* https://github.com/raspberrypi/tools/blob/master/armstubs/armstub8.S */
 
-/********************** ARM Memory ***************************/
-/* ISH --- Operation only to the Inner Shareable domain (i.e. visible to all or some cores) */
-#define DATA_MEMORY_BARRIER_INNER_ANY()         asm volatile("dmb ISH" ::: "memory")
-/* NSH --- Operation only out to the point of unification (i.e. visible to this core)  */
-#define DATA_MEMORY_BARRIER_NOSHARE_ANY()       asm volatile("dmb NSH" ::: "memory")
+#ifndef __ASSEMBLER__
 
-u64 get_daif_flags(void);
-void set_daif_flags(u64);
-s32 enter_critical(u32 target_lvl);
-s32 leave_critical(void);
 
-/********************** Synchronization ***************************/
+void delay(u64);
 
 
 #endif // __ASSEMBLER__
