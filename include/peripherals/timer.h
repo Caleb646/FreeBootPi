@@ -18,12 +18,19 @@
 // C0, C1, C2, and C3 --- The system timer compare registers hold the compare value for each of the four timer channels. 
 // Whenever the lower 32-bits of the free-running counter matches one of the compare values 
 // the corresponding bit in the system timer control/status register is set.
+// NOTE: Timers 0 & 2 are reserved for the GPU.
+// 1 & 3 are free.
 #define VC_SYSTEM_TIMER_C0          (TIMER_BASE + 0x0C) // 32 bits -- System Timer Compare 0
 #define VC_SYSTEM_TIMER_C1          (TIMER_BASE + 0x10) // 32 bits -- System Timer Compare 1
 #define VC_SYSTEM_TIMER_C2          (TIMER_BASE + 0x14) // 32 bits -- System Timer Compare 2
 #define VC_SYSTEM_TIMER_C3          (TIMER_BASE + 0x18) // 32 bits -- System Timer Compare 3
 
 #define TICKS_PER_SECOND            100
+
+#define SECONDS_TO_MS(seconds)      (seconds * 1000)
+#define MS_TO_SECONDS(ms)           (ms / 1000)
+#define SECONDS_TO_US(seconds)      (seconds * 1000000)
+#define US_TO_SECONDS(us)           (us / 1000000)
 
 typedef struct timer_s
 {
@@ -32,10 +39,11 @@ typedef struct timer_s
 
 extern timer_s timer;
 
-s32 init_timer(timer_s*);
-u64 get_sys_time_s(void);
+s32 timer_init(timer_s*);
+u64 get_sys_time_ms(void);
+void wait_ms(u32);
 
-void sys_timer_update_irq_handler(u32 irq_id);
+void sys_timer_irq_handler(u32 irq_id);
 
 u32 get_arm_local_timer_freq(void);
 

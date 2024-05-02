@@ -103,6 +103,7 @@ void tfp_format(void* putp,void (*putf) (void*,char),char *fmt, va_list va);
 #define printf tfp_printf
 #define sprintf tfp_sprintf
 
+#define LOG_INFO(...) do { printf("[INFO] -- "); printf(__VA_ARGS__); printf("\r\n"); } while(0)
 #define LOG_DEBUG(...) do { printf("[DEBUG] -- "); printf(__VA_ARGS__); printf("\r\n"); } while(0)
 #define LOG_ERROR(...) do { printf("[ERROR] -- "); printf(__VA_ARGS__); printf("\r\n"); } while(0)
 

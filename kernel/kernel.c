@@ -100,10 +100,7 @@ void show_invalid_entry_message(s32 type, u32 esr, u32 address)
 void kernel_main(void)
 {
 	init_printf(0, putc);
-	ENABLE_IRQ();
-	// armstub8.S sets all interrupts to group 1 (non-secure irqs)
-	// and enables the GICD and each GICC for ALL cores
-	gic_init();
+	irq_init();
 	LOG_DEBUG("Hello from Kernel\r\n");
     while (1) 
 	{

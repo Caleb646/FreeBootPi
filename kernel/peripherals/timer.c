@@ -17,9 +17,14 @@ u32 get_arm_local_timer_freq(void)
     return freq;
 }
 
-
-s32 init_timer(timer_s* t)
+void sys_timer_irq_handler(u32 irq_id)
 {
-    
+    LOG_INFO("Received Timer IRQ [%u]", irq_id);
+}
+
+
+s32 timer_init(timer_s* t)
+{
+    gic_enable_interrupt(VC_GIC_SYSTEM_TIMER_IRQ_3, &sys_timer_irq_handler);
     return 1;
 }

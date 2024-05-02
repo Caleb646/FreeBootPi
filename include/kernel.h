@@ -44,17 +44,6 @@ void delay(u64);
 /* NSH --- Operation only out to the point of unification (i.e. visible to this core)  */
 #define DATA_MEMORY_BARRIER_NOSHARE_ANY()       asm volatile("dmb NSH" ::: "memory")
 
-/********************** ARM Interrupts ***************************/
-#define IRQ_BIT                     (1 << 7)
-#define FIQ_BIT                     (1 << 6)
-#define ENABLE_IRQ()                asm volatile ("msr daifclr, #2")
-#define DISABLE_IRQ()               asm volatile ("msr daifset, #2")
-#define ENABLE_FIQ()                asm volatile ("msr daifclr, #1")
-#define DISABLE_FIQ()               asm volatile ("msr daifset, #1")
-#define ENABLE_IRQ_FIQ()            asm volatile ("msr daifclr, #3")
-#define DISABLE_IRQ_FIQ()           asm volatile ("msr daifset, #3")
-#define MAX_NESTED_INTERRUPTS       12
-
 u64 get_daif_flags(void);
 void set_daif_flags(u64);
 s32 enter_critical(u32 target_lvl);

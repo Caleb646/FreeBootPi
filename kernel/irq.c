@@ -10,15 +10,12 @@ u32 gic_get_cpu_id(void)
 	{
 		LOG_ERROR("Invalid CPU id read from the GIC Distributor: [%u]", target);
 	}
+    LOG_INFO("Arm Core [%u] has GIC Id of [%u]", target);
 	return target;
 }
 
 void gic_assign_target(u32 irq_id, u32 gic_cpu_id)
 {
-	// u32 int_reg_id = irq / 4;
-	// u32 target_register = GICD_ITARGETSRn(int_reg_id);
-	// // Currently only enter the target CPU 0
-	// put32(target_register, get32(target_register) | (1 << 8));
 	u32 int_reg_id = irq_id / 4;
 	u32 bit_offset = irq_id % 4;
 	// Page 598 of Arm Generic Interrupt Controller Spec
@@ -58,17 +55,72 @@ void gic_general_irq_handler(u32 irq_id)
         );
 }
 
-void gic_init(void) 
+s32 gic_init(void) 
 {	
-	// gic_assign_target(VC_GIC_SYSTEM_TIMER_IRQ_1, gic_get_cpu_id());
-	// gic_enable_interrupt(VC_GIC_SYSTEM_TIMER_IRQ_1);
-    for(u32 cid = 0; cid < ARM_NUM_CORES; ++cid)
+    // armstub8.S sets all interrupts to group 1 (non-secure irqs)
+	// and enables the GICD and each GICC for ALL cores
+    if(get_arm_core_id() == 0) /* Primary Core */
     {
-        for(u32 i = 0; i < GIC_NUM_INTERRUPTS; ++i)
+        put32(GICD_CTLR, GICD_CTLR_DISABLE);
+
+        /* Clear any enabled, active, or pending interrupts */
+        for (u32 n = 0; n < GIC_NUM_INTERRUPTS / 32; ++n)
         {
-            gic_irq_handlers[cid][i] = &gic_general_irq_handler;
+            put32(GICD_ICENABLERn(n), ~0);
+            put32(GICD_ICPENDRn(n), ~0);
+            put32(GICD_ICACTIVERn(n), ~0);
         }
+        /* 
+        * Set all interrupts priorities to 0 and set every interrupts target to be core 0.
+        * Higher interrupt priority corresponds to a lower value of the Priority field.
+        * Each 32 bit register holds the priority status for 4 interrupt types. Allowing
+        * for 8 bits per interrupt type.
+        */
+        for (u32 n = 0; n < GIC_NUM_INTERRUPTS / 4; ++n)
+        {
+            put32(
+                GICD_IPRIORITYRn(n), 
+                (GICD_IPRIORITY_DEFAULT_PRIORITY << 0)  |
+                (GICD_IPRIORITY_DEFAULT_PRIORITY << 8)  |
+                (GICD_IPRIORITY_DEFAULT_PRIORITY << 16) |
+                (GICD_IPRIORITY_DEFAULT_PRIORITY << 24)
+            );
+            put32(GICD_ITARGETSRn(n), 0x0);
+        }
+        /* 
+        * Set all interrupts to level-triggered.
+        * Each GICD_ICFGR register is 32 bits with 2 bits allocated for each
+        * interrupt type.
+        * 0b00 == level-triggered
+        * 0b10 == edge-triggered
+        */
+        for (u32 n = 0; n < GIC_NUM_INTERRUPTS / 16; ++n)
+        {
+            put32(GICD_ICFGRn(n), GICD_ICFGR_LEVEL_TRIGGERED);
+        }
+
+        /* Initialize all handlers to the general handler */
+        for(u32 cid = 0; cid < ARM_NUM_CORES; ++cid)
+        {
+            for(u32 i = 0; i < GIC_NUM_INTERRUPTS; ++i)
+            {
+                gic_irq_handlers[cid][i] = &gic_general_irq_handler;
+            }
+        }
+        put32(GICD_CTLR, GICD_CTLR_ENABLE);
     }
+    /* Enable GIC CPU Interface for each core */
+    put32(GICC_PMR, GICC_PMR_16_PRIORITY_LEVELS);
+	put32(GICC_CTLR, GICC_CTLR_ENABLE);
+    
+    return 1;
+}
+
+s32 irq_init(void)
+{
+    s32 status = gic_init();
+    ENABLE_IRQ();
+    return status;
 }
 
 void handle_irq(void) 
