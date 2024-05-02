@@ -1,20 +1,41 @@
 #include "irq.h"
 #include "printf.h"
 
-extern irq_handler_t gic_irq_handlers[ARM_NUM_CORES][GIC_NUM_INTERRUPTS];
+static irq_handler_t volatile gic_irq_handlers[ARM_NUM_CORES][GIC_NUM_INTERRUPTS];
 
-u32 gic_get_cpu_id(void)
+/*
+* \brief	Returns ARM core interrupt status
+* \return	
+* 0 is not masked (enabled) & 1 is masked (disabled)
+* Bit 9 = Watchpoint, Breakpoint, and Software Step exceptions 
+* Bit 8 = SError exception
+* Bit 7 = IRQ mask
+* Bit 6 = FIQ mask
+*/
+u64 get_daif_flags(void)
 {
-	u32 target = get32(GICD_ITARGETSR0) & 0xFF;
-	if(target > 7)
-	{
-		LOG_ERROR("Invalid CPU id read from the GIC Distributor: [%u]", target);
-	}
-    LOG_INFO("Arm Core [%u] has GIC Id of [%u]", get_arm_core_id(), target);
-	return target;
+	u64 flags;
+	asm volatile ("mrs %0, daif" : "=r" (flags));
+	return flags;
 }
 
-void gic_assign_target(u32 irq_id, u32 gic_cpu_id)
+void set_daif_flags(u64 flags)
+{
+	asm volatile ("msr daif, %0" :: "r" (flags));
+}
+
+// u32 gic_get_cpu_id(void)
+// {
+// 	u32 target = get32(GICD_ITARGETSR0) & 0xFF;
+// 	if(target > 7)
+// 	{
+// 		LOG_ERROR("Invalid CPU id read from the GIC Distributor: [%u]", target);
+// 	}
+//     LOG_INFO("Arm Core [%u] has GIC Id of [%u]", get_arm_core_id(), target);
+// 	return target;
+// }
+
+void gic_assign_target(u32 irq_id, u32 cpu_id)
 {
 	u32 int_reg_id = irq_id / 4;
 	u32 bit_offset = irq_id % 4;
@@ -23,15 +44,15 @@ void gic_assign_target(u32 irq_id, u32 gic_cpu_id)
 	if(bit_offset > 3)
 	{
 		LOG_ERROR(
-			"Failed to Assign Target: [%u] to GIC CPU [%u] because of invalid bit offset [%u]", 
+			"Failed to Assign Target: [%u] to CPU [%u] because of invalid bit offset [%u]", 
 			irq_id, 
-			gic_cpu_id, 
+			cpu_id, 
 			bit_offset
 			);
 		return;
 	}
 	u64 reg = GICD_ITARGETSRn(int_reg_id);
-	put32(reg, get32(reg) | (1 << (gic_cpu_id + offsets[bit_offset])));
+	put32(reg, get32(reg) | (1 << (cpu_id + offsets[bit_offset])));
 }
 
 void gic_enable_interrupt(u32 irq, irq_handler_t handler) 
@@ -39,7 +60,7 @@ void gic_enable_interrupt(u32 irq, irq_handler_t handler)
     // Store handler for use later
     gic_irq_handlers[get_arm_core_id()][irq] = handler;
     // Assign this irq to the calling cpu core
-    gic_assign_target(irq, gic_get_cpu_id());
+    gic_assign_target(irq, get_arm_core_id());
 
 	u32 int_reg_id = irq / 32;
 	u32 bit_offset = irq % 32;
@@ -109,7 +130,7 @@ s32 gic_init(void)
         }
         put32(GICD_CTLR, GICD_CTLR_ENABLE);
     }
-    /* Enable GIC CPU Interface for each core */
+    /* Allow each core to Enable their GIC CPU Interface */
     put32(GICC_PMR, GICC_PMR_16_PRIORITY_LEVELS);
 	put32(GICC_CTLR, GICC_CTLR_ENABLE);
     

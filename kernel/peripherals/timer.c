@@ -1,5 +1,6 @@
 #include "peripherals/timer.h"
 #include "printf.h"
+#include "sync.h"
 #include "irq.h"
 
 static timer_s volatile timer = {0, 0, 0, 0};
@@ -19,7 +20,9 @@ u32 get_arm_local_timer_freq(void)
 
 void sys_timer_irq_handler(u32 irq_id)
 {
-    LOG_INFO("Received Timer IRQ [%u]", irq_id);
+    // LOG_INFO("Received Timer IRQ [%u]", irq_id);
+    enter_critical(IRQ_DISABLED_FIQ_DISABLED_TARGET); 
+
     /* Update compare register */
     put32(
             VC_SYSTEM_TIMER_IRQID_TO_CO_REG(irq_id),
@@ -32,10 +35,12 @@ void sys_timer_irq_handler(u32 irq_id)
             get32(VC_SYSTEM_TIMER_CS) | VC_SYSTEM_TIMER_IRQID_TO_MBIT(irq_id)
         );
 
-    if(++timer.cur_ticks % TICKS_PER_SECOND == 0)
+    if(++timer.cur_ticks % TIMER_UPDATES_PER_SECOND == 0)
     {
         ++timer.cur_seconds;
     }
+
+    leave_critical();
 }
 
 s32 timer_init(u32 timer_irq_id)
@@ -51,7 +56,7 @@ s32 timer_init(u32 timer_irq_id)
     /* Initialize Timer Struct */
     timer.cur_ticks = 0;
     timer.cur_seconds = 0;
-    timer.irq_interval = VC_SYSTEM_CLOCK_HZ / TICKS_PER_SECOND;
+    timer.irq_interval = VC_SYSTEM_CLOCK_HZ / TIMER_UPDATES_PER_SECOND;
     timer.irq_id = timer_irq_id;
 
     /* Enable Timer Interrupt on GIC and Set Handler */
@@ -63,4 +68,29 @@ s32 timer_init(u32 timer_irq_id)
             get32(VC_SYSTEM_TIMER_CLO) + timer.irq_interval
         );
     return 1;
+}
+
+void wait_ms(u32 ms)
+{
+    u32 cticks = read32(VC_SYSTEM_TIMER_CLO);
+    u32 nticks = cticks + ((VC_SYSTEM_CLOCK_HZ / (1000 * TIMER_UPDATES_PER_SECOND)) * ms);
+    overflow:
+    /* If the current counter plus the necessary ticks needed overflows */
+    if(nticks < cticks)
+    {
+        /* Wait until CLO overflows */
+        while(nticks < read32(VC_SYSTEM_TIMER_CLO)) {}
+        /* Wait until CLO is greater than nticks*/
+        while(nticks > read32(VC_SYSTEM_TIMER_CLO)) {}
+    }
+    /* If close to overflowing go ahead and overflow */
+    else if((nticks + 100000) < cticks)
+    {
+        nticks += 100000;
+        goto overflow;
+    }
+    else 
+    {
+        while(read32(VC_SYSTEM_TIMER_CLO) < nticks) {}
+    }
 }
