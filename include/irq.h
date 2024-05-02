@@ -1,5 +1,5 @@
-#ifndef	_P_GIC_H
-#define	_P_GIC_H
+#ifndef	_P_IRQ_H
+#define	_P_IRQ_H
 
 #include "base.h"
 
@@ -16,9 +16,12 @@
 /************************* Distributor Registers *********************************/
 #define GICD_DIST_BASE (GIC_BASE + 0x00001000)
 
-#define GICD_CTLR  (GICD_DIST_BASE + 0x000) // RW 0x00000000c Distributor Control Register
-#define GICD_TYPER (GICD_DIST_BASE + 0x004) // RO Configuration-dependentd Interrupt Controller Type Register
-#define GICD_IIDR  (GICD_DIST_BASE + 0x008) // RO 0x0200143B Distributor Implementer Identification Register
+#define GICD_CTLR           (GICD_DIST_BASE + 0x000) // RW 0x00000000c Distributor Control Register
+#define GICD_CTLR_DISABLE   0x0 /* Value to disable distributor */
+#define GICD_CTLR_ENABLE    (1 << 0) /* Value to enable distributor */
+
+#define GICD_TYPER          (GICD_DIST_BASE + 0x004) // RO Configuration-dependentd Interrupt Controller Type Register
+#define GICD_IIDR           (GICD_DIST_BASE + 0x008) // RO 0x0200143B Distributor Implementer Identification Register
 
 #define GICD_IGROUPR0 (GICD_DIST_BASE + 0x080) // GICD_IGROUPRn RW 0x00000000 Interrupt Group Registerse
 #define GICD_IGROUPR1 (GICD_DIST_BASE + 0x0BC) // GICD_IGROUPRn RW 0x00000000 Interrupt Group Registerse
@@ -39,7 +42,7 @@
 #define GICD_ISENABLER13 (GICD_DIST_BASE + 0x134) // GICD_ISENABLERn RWf SGIs and PPIs: 0x0000FFFFg Interrupt Set-Enable Registers
 #define GICD_ISENABLER14 (GICD_DIST_BASE + 0x138) // GICD_ISENABLERn RWf SGIs and PPIs: 0x0000FFFFg Interrupt Set-Enable Registers
 #define GICD_ISENABLER15 (GICD_DIST_BASE + 0x13C) // GICD_ISENABLERn RWf SGIs and PPIs: 0x0000FFFFg Interrupt Set-Enable Registers
-#define GICD_ISENABLERn(interrupt_reg_id) (GICD_ISENABLER0 + interrupt_reg_id * 4)
+#define GICD_ISENABLERn(interrupt_reg_id) (GICD_ISENABLER0 + interrupt_reg_id * sizeof(u32))
 
 #define GICD_ICENABLER0  (GICD_DIST_BASE + 0x180) // GICD_ICENABLERn RWf 0x0000FFFFg Interrupt Clear-Enable Registers
 #define GICD_ICENABLER1  (GICD_DIST_BASE + 0x184) // GICD_ICENABLERn RWf 0x0000FFFFg Interrupt Clear-Enable Registers
@@ -57,6 +60,8 @@
 #define GICD_ICENABLER13 (GICD_DIST_BASE + 0x1B4) // GICD_ICENABLERn RWf 0x0000FFFFg Interrupt Clear-Enable Registers
 #define GICD_ICENABLER14 (GICD_DIST_BASE + 0x1B8) // GICD_ICENABLERn RWf 0x0000FFFFg Interrupt Clear-Enable Registers
 #define GICD_ICENABLER15 (GICD_DIST_BASE + 0x1BC) // GICD_ICENABLERn RWf 0x0000FFFFg Interrupt Clear-Enable Registers
+#define GICD_ISENABLER15 (GICD_DIST_BASE + 0x13C) // GICD_ISENABLERn RWf SGIs and PPIs: 0x0000FFFFg Interrupt Set-Enable Registers
+#define GICD_ICENABLERn(interrupt_reg_id) (GICD_ICENABLER0 + interrupt_reg_id * sizeof(u32))
 
 // Adds the pending state to interrupt number 32n + x. Reads and writes have the following behavior:
 #define GICD_ISPENDR0     (GICD_DIST_BASE + 0x200) // GICD_ISPENDRn    RW 0x00000000 Interrupt Set-Pending Registers
@@ -75,6 +80,7 @@
 #define GICD_ISPENDR13    (GICD_DIST_BASE + 0x234) // GICD_ISPENDRn    RW 0x00000000 Interrupt Set-Pending Registers
 #define GICD_ISPENDR14    (GICD_DIST_BASE + 0x238) // GICD_ISPENDRn    RW 0x00000000 Interrupt Set-Pending Registers
 #define GICD_ISPENDR15    (GICD_DIST_BASE + 0x23C) // GICD_ISPENDRn    RW 0x00000000 Interrupt Set-Pending Registers
+#define GICD_ISPENDRn(interrupt_reg_id) (GICD_ISPENDR0 + interrupt_reg_id * sizeof(u32))
 
 // For SPIs and PPIs, removes the pending state from interrupt number 32n + x
 #define GICD_ICPENDR0     (GICD_DIST_BASE + 0x280) // GICD_ICPENDRn    RW 0x00000000 Interrupt Clear-Pending Registers
@@ -93,6 +99,7 @@
 #define GICD_ICPENDR13    (GICD_DIST_BASE + 0x2B4)// GICD_ICPENDRn    RW 0x00000000 Interrupt Clear-Pending Registers
 #define GICD_ICPENDR14    (GICD_DIST_BASE + 0x2B8)// GICD_ICPENDRn    RW 0x00000000 Interrupt Clear-Pending Registers
 #define GICD_ICPENDR15    (GICD_DIST_BASE + 0x2BC)// GICD_ICPENDRn    RW 0x00000000 Interrupt Clear-Pending Registers
+#define GICD_ICPENDRn(interrupt_reg_id) (GICD_ICPENDR0 + interrupt_reg_id * sizeof(u32))
 
 // Adds the active state to interrupt number 32n + x
 #define GICD_ISACTIVER0   (GICD_DIST_BASE + 0x300) // GICD_ISACTIVERn  RW 0x00000000 Interrupt Set-Active Registers
@@ -111,6 +118,7 @@
 #define GICD_ISACTIVER13  (GICD_DIST_BASE + 0x334) // GICD_ISACTIVERn  RW 0x00000000 Interrupt Set-Active Registers
 #define GICD_ISACTIVER14  (GICD_DIST_BASE + 0x338) // GICD_ISACTIVERn  RW 0x00000000 Interrupt Set-Active Registers
 #define GICD_ISACTIVER15  (GICD_DIST_BASE + 0x33C) // GICD_ISACTIVERn  RW 0x00000000 Interrupt Set-Active Registers
+#define GICD_ISACTIVERn(interrupt_reg_id) (GICD_ISACTIVER0 + interrupt_reg_id * sizeof(u32))
 
 // Removes the active state from interrupt number 32n + x
 #define GICD_ICACTIVER0   (GICD_DIST_BASE + 0x380) // GICD_ICACTIVERn  RW 0x00000000 Interrupt Clear-Active Registers
@@ -129,11 +137,17 @@
 #define GICD_ICACTIVER13  (GICD_DIST_BASE + 0x3B4) // GICD_ICACTIVERn  RW 0x00000000 Interrupt Clear-Active Registers
 #define GICD_ICACTIVER14  (GICD_DIST_BASE + 0x3B8) // GICD_ICACTIVERn  RW 0x00000000 Interrupt Clear-Active Registers
 #define GICD_ICACTIVER15  (GICD_DIST_BASE + 0x3BC) // GICD_ICACTIVERn  RW 0x00000000 Interrupt Clear-Active Registers
+#define GICD_ICACTIVERn(interrupt_reg_id) (GICD_ICACTIVER0 + interrupt_reg_id * sizeof(u32))
 
 // Holds the priority of the corresponding interrupt
-// Interrupts from 0 to 126
 // Offset -> 0x400 to 0x5FC
-#define GICD_IPRIORITYRn(interrupt_reg_id) (GICD_DIST_BASE + (0x400 + interrupt_reg_id * 4)) // GICD_IPRIORITYRn RW 0x00000000 Interrupt Priority Registers
+#define GICD_IPRIORITYR0    (GICD_DIST_BASE + 0x400)
+#define GICD_IPRIORITYRn(interrupt_reg_id) (GICD_IPRIORITYR0 + interrupt_reg_id * sizeof(u32)) // Interrupt Priority Registers
+/* 
+* GICC_PMR set to allow sixteen levels ranging from values 0 to 240 on init.
+* Each level needs to be a multiple of 16. So 0, 16, 32, 48
+*/
+#define GICD_IPRIORITY_DEFAULT_PRIORITY 0xA0 
 
 // When affinity routing is not enabled, holds the list of target PEs for the interrupt. That is, it holds
 // the list of CPU interfaces to which the Distributor forwards the interrupt if it is asserted and has
@@ -156,6 +170,9 @@
 // Determines whether the corresponding interrupt is edge-triggered or level-sensitive.
 #define GICD_ICFGR0 (GICD_DIST_BASE + 0xC00) // GICD_ICFGRn RO SGIs: 0xAAAAAAAA Interrupt Configuration Registers, GICD_ICFGRn
 #define GICD_ICFGR1 (GICD_DIST_BASE + 0xC04) // GICD_ICFGRn RO PPIs: 0x55540000 Interrupt Configuration Registers, GICD_ICFGRn
+#define GICD_ICFGRn(interrupt_reg_id) (GICD_ICFGR0 + interrupt_reg_id * 4)
+#define GICD_ICFGR_LEVEL_TRIGGERED 0b00
+#define GICD_ICFGR_EDGE_TRIGGERED 0b10
 // #define GICD_ICFGRn 0xC08-0xC7C // GICD_ICFGRn R/W SPIs: 0x55555555 Interrupt Configuration Registers, GICD_ICFGRn
 
 // Enables a processor to access the status of the PPI (Private Peripheral Interrupt) inputs on the Distributor
@@ -213,10 +230,13 @@
 // Controls the CPU interface, including enabling of interrupt groups, interrupt signal bypass, binary
 // point registers used, and separation of priority drop and interrupt deactivation.
 #define GICC_CTLR   (GICC_CPU_BASE + 0x0000) //  RW 0x00000000 CPU Interface Control Register
+#define GICC_CTLR_DISABLE   (0 << 0)
+#define GICC_CTLR_ENABLE    (1 << 0)
 
 // This register provides an interrupt priority filter. Only interrupts with a higher priority than the value
 // in this register are signaled to the PE
 #define GICC_PMR    (GICC_CPU_BASE + 0x0004) // RW 0x00000000 Interrupt Priority Mask Register
+#define GICC_PMR_16_PRIORITY_LEVELS 0xF0 /* 0x00 - 0xF0 (0-240), in steps of 16	with 16 priority levels */
 
 // Defines the point at which the priority value fields split into two parts, the group priority field and
 // the subpriority field.
@@ -225,6 +245,12 @@
 // Provides the INTID of the signaled interrupt. A read of this register by the PE acts as an
 // acknowledge for the interrupt.
 // INTID, bits [23:0] The INTID of the signaled interrupt.
+/*
+* When affinity routing is not enabled:
+*   Bits [23:13] are RES0.
+*   For SGIs, bits [12:10] identify the CPU interface corresponding to the source PE. For all
+*       other interrupts these bits are RES0.
+*/
 #define GICC_IAR    (GICC_CPU_BASE + 0x000C) //  RO 0x000003FF Interrupt Acknowledge Register
 
 // A write to this register performs priority drop for the specified interrupt
@@ -243,8 +269,20 @@
 #define GICC_IIDR   (GICC_CPU_BASE + 0x00FC) //   RO 0x0202143B CPU Interface Identification Register, GICC_IIDR on page 3-11
 #define GICC_DIR    (GICC_CPU_BASE + 0x1000) //   WO - Deactivate Interrupt Register
 
+/* 
+* ARM Per Core Interrupt IDs 
+* 6 interrupts per core. Range from 7 to 31
+*/
+#define ARM_CORE_HP_TIMER_IRQ(core_id)      ( (core_id * 4) + 0 + 7 )
+#define ARM_CORE_V_TIMER_IRQ(core_id)       ( (core_id * 4) + 1 + 7 )
+#define ARM_CORE_LEGACY_FIQ(core_id)        ( (core_id * 4) + 2 + 7 )
+#define ARM_CORE_PS_TIMER_IRQ(core_id)      ( (core_id * 4) + 3 + 7 )
+#define ARM_CORE_PNS_TIMER_IRQ(core_id)     ( (core_id * 4) + 4 + 7 )
+#define ARM_CORE_LEGACY_IRQ(core_id)        ( (core_id * 4) + 5 + 7 )
+#define ARM_CORE_IRQID_END                  31
+
 // ARM Local Interrupts
-// ARM Local GIC IRQ Ids: 32 through 47 - (Page 87 and 90 of BCM2711 ARM Peripherals)
+// ARM Local GIC IRQ Ids: 32 through 47 - (Page 89 and 90 of BCM2711 ARM Peripherals)
 #define ARM_LOCAL_IRQ_BASE      (32)
 #define ARM_LOCAL_MBOX_IRQ0     (ARM_LOCAL_IRQ_BASE + 0 )
 #define ARM_LOCAL_MBOX_IRQ1     (ARM_LOCAL_IRQ_BASE + 1 )
@@ -285,10 +323,40 @@
 
 
 // VC (VideoCore) GIC IRQ Ids: 96 through 159 - (Page 88 and 90 of BCM2711 ARM Peripherals)
-#define VC_BASE_IRQ                 (96)
-#define VC_SYSTEM_TIMER_IRQ_0       (VC_BASE_IRQ + 0) //96
-#define VC_SYSTEM_TIMER_IRQ_1       (VC_BASE_IRQ + 1) //97
-#define VC_SYSTEM_TIMER_IRQ_2       (VC_BASE_IRQ + 2) //98
-#define VC_SYSTEM_TIMER_IRQ_3       (VC_BASE_IRQ + 3) //99
+#define VC_GIC_BASE_IRQ                 (96)
+#define VC_GIC_SYSTEM_TIMER_IRQ_0       (VC_GIC_BASE_IRQ + 0) //96
+#define VC_GIC_SYSTEM_TIMER_IRQ_1       (VC_GIC_BASE_IRQ + 1) //97
+#define VC_GIC_SYSTEM_TIMER_IRQ_2       (VC_GIC_BASE_IRQ + 2) //98
+#define VC_GIC_SYSTEM_TIMER_IRQ_3       (VC_GIC_BASE_IRQ + 3) //99
 
-#endif  /*_P_GIC_H */
+#define GIC_NUM_INTERRUPTS (16 * 32) /* 16 ISEnable Registers and each register is 32 bits */
+
+/********************** ARM Interrupts ***************************/
+#define IRQ_BIT                     (1 << 7)
+#define FIQ_BIT                     (1 << 6)
+#define ENABLE_IRQ()                asm volatile ("msr daifclr, #2")
+#define DISABLE_IRQ()               asm volatile ("msr daifset, #2")
+#define ENABLE_FIQ()                asm volatile ("msr daifclr, #1")
+#define DISABLE_FIQ()               asm volatile ("msr daifset, #1")
+#define ENABLE_IRQ_FIQ()            asm volatile ("msr daifclr, #3")
+#define DISABLE_IRQ_FIQ()           asm volatile ("msr daifset, #3")
+#define MAX_NESTED_INTERRUPTS       12
+
+#ifndef __ASSEMBLER__
+
+extern irq_handler_t gic_irq_handlers[ARM_NUM_CORES][GIC_NUM_INTERRUPTS];
+
+u32 gic_get_cpu_id(void);
+void gic_enable_interrupt(u32 irq, irq_handler_t handler);
+void gic_assign_target(u32 irq_id, u32 gic_cpu_id);
+void gic_general_irq_handler(u32 irq_id);
+s32 gic_init(void);
+
+s32 irq_init(void);
+
+
+void handle_irq(void);
+
+#endif // __ASSEMBLER__
+
+#endif  /*_P_IRQ_H */

@@ -6,6 +6,7 @@
         "kernel.h": "c",
         "timer.h": "c",
         "vidcore.h": "c",
-        "regex": "c"
+        "regex": "c",
+        "base.h": "c"
     }
 }

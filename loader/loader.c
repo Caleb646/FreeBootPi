@@ -70,14 +70,7 @@ static void delay(u32 cycles)
 
 void loader_main(void)
 {
-    mini_uart_init();
-    while (1) 
-    {
-        uart_send_string("Hello\r\n");
-        delay(10000);
-    }
-
-    restart:
+    mini_uart_init(); 
     uart_send_string("Beginning Kernel Loading Process");
     // request kernel by sending 3 breaks
     uart_send_string("\x03\x03\x03");
@@ -96,8 +89,8 @@ void loader_main(void)
 	    *kernel++ = uart_recv();
     }
 
-    // Kernel is loaded at 0x8000, call it via function pointer
-    uart_send_string("Booting");
+    // Kernel is loaded at 0x80000, call it via function pointer
+    uart_send_string("Booting to Kernel");
     typedef void (*entry_fn)();
     entry_fn fn = (entry_fn)KERNEL_LOAD_ADDR;
     fn();

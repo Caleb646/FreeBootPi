@@ -68,16 +68,6 @@
 	eret
 	.endm
 
-.globl put32
-put32: //
-	str w1, [x0] ; // store the value in w1 (32 bit reg) at the location in x0 (64 bit reg)
-	ret
-
-.globl get32
-get32: //
-	ldr w0, [x0] ; // load value at address in x0 into w0
-	ret
-
 .globl delay
 delay: //
 	subs x0, x0, #1
@@ -97,25 +87,118 @@ _start: //
 	mov	sp, x0	    // EL2 stack set 
 	msr	sp_el1, x1	// EL1 stack set
 	msr	sp_el0, x2	// EL0 stack set
-	// Disable MMU for EL1 & EL0
-	ldr	x0, =SCTLR_EL1_VALUE
-	msr	sctlr_el1, x0
+
+	/* Setup vector table for EL2 */
+	ldr x0, =vector_table						
+    msr vbar_el2, x0
+
+	/* Setup vector table for EL1 */
+	ldr x0, =vector_table						
+    msr vbar_el1, x0
+
+	/* Initialize Generic Timers */
+	mrs	x0, cnthctl_el2
+	/* 
+	* Bit 1 == enables/disables traps for EL0 accesses to the 
+	* frequency register and virtual offset register to EL2.
+	*	0b0 == traps are enabled
+	*	0b1 == traps are disabled
+	*
+	* Bit 0 == enables/disables traps for EL0 accesses to the 
+	* frequency register and physical counter register to EL2.
+	*	0b0 == traps are enabled
+	*	0b1 == traps are disabled
+	*/
+	orr	x0, x0, #0x3	/* Enable EL1 access to timers */
+	msr	cnthctl_el2, x0
+	/* 
+	* Holds the 64-bit virtual offset. This is the offset 
+	* between the physical count value visible in CNTPCT_EL0 
+	* and the virtual count value visible in CNTVCT_EL0. 
+	*/
+	msr	cntvoff_el2, xzr
+
+	/* Disable coprocessor traps */
+	/*
+	* cptr_el2: Controls trapping to EL2 of accesses to CPACR, CPACR_EL1, trace, 
+	* Activity Monitor, SVE, and Advanced SIMD and floating-point functionality. 
+	*
+	* Bit 31 == Enables/disables traps for accesses to CPACR_EL1 from EL1 to EL2
+	*	0b0 == disables traps
+	*	0b1 == enables traps
+	*
+	* Bit 30 == Enables/disables Traps EL1 and EL0 accesses to all Activity Monitor registers to EL2
+	*	0b0 == disables traps
+	*	0b1 == enables traps
+	*
+	* Bit 28 == Traps System register accesses to all implemented trace registers from both Execution states to EL2
+	*	0b0 == disables traps
+	*	0b1 == enables traps
+	*
+	* Bits 21:20 == Traps execution at EL2, EL1, and EL0 of instructions that 
+	* access the Advanced SIMD and floating-point registers from both Execution states to EL2
+	* 	0b11 == Disables traps 
+	* 
+	* Bits 17:16 == Traps execution at EL2, EL1, and EL0 of SVE 
+	* instructions, and instructions that directly access the ZCR_EL1 or ZCR_EL2 System registers to EL2
+	*	0b11 == Disables traps
+	*/
+	mov	x0, #0x33FF 		/* NOTE: Leave SIMD traps enabled for now */ 
+	msr	cptr_el2, x0
+	/*
+	* hstr_el2: Controls trapping to EL2 from EL1
+	*
+	* Bits 15, 13:5, 3:0 == control whether EL0 and EL1 accesses, using MCR, MRC, MCRR, 
+	* and MRRC instructions, to the System registers in the coproc == 0b1111 encoding space, are trapped to EL2
+	*	0b0 == Disables traps
+	*/
+	msr	hstr_el2, xzr		/* Disable coprocessor traps to EL2 */
+	/*
+	* cpacr_el1: Controls access to trace, SVE, and Advanced SIMD and floating-point functionality
+	*
+	* Bit 28 == Traps EL0 and EL1 System register accesses to all implemented 
+	* trace registers from both Execution states to EL1, or to EL2
+	*	0b0 == Disables traps
+	*
+	* Bits 21:20 == Traps execution at EL1 and EL0 of instructions that 
+	* access the Advanced SIMD and floating-point registers from both Execution states to EL1
+	*	0b00 == This control causes execution of these instructions at EL1 and EL0 to be trapped.
+	*	0b01 == This control causes execution of these instructions at 
+	*		EL0 to be trapped, but does not cause execution of any instructions at EL1 to be trapped.
+	* 	0b10 == This control causes execution of these instructions at EL1 and EL0 to be trapped.
+	* 	0b11 == This control does not cause execution of any instructions to be trapped.
+	*
+	* Bits 17:16 == Traps execution at EL1 and EL0 of SVE instructions and instructions that directly 
+	* access the ZCR_EL1 System register to EL1, or to EL2 when EL2 is implemented and 
+	* enabled in the current Security state and HCR_EL2.TGE is 1.
+	*	0b00 == This control causes execution of these instructions at EL1 and EL0 to be trapped.
+	*	0b01 == This control causes execution of these instructions at 
+	*		EL0 to be trapped, but does not cause execution of any instructions at EL1 to be trapped.
+	* 	0b10 == This control causes execution of these instructions at EL1 and EL0 to be trapped.
+	* 	0b11 == This control does not cause execution of any instructions to be trapped.
+	*/
+	mov	x0, #3 << 20
+	msr	cpacr_el1, x0	/* Enable FP/SIMD at EL1 */
+
 	// Hypervisor Configuration Register for EL2
 	ldr	x0, =HCR_EL2_VALUE
 	msr	hcr_el2, x0
+
+	// Disable MMU for EL1 & EL0
+	ldr	x0, =SCTLR_EL1_VALUE
+	msr	sctlr_el1, x0
+
 	// Disable (Mask) DAIF Interrupts
 	// Set on exception to use EL1 stack NOT EL0 stack
 	ldr x0, =SPSR_EL2_VALUE
     msr spsr_el2, x0
+
 	// Change from EL2 to EL1
 	adr	x0, el1_entry		
 	msr	elr_el2, x0
 	eret
 
 el1_entry: //
-
-	ldr x0, =vector_table						
-    msr vbar_el1, x0
 
 	bss_clear: //
          ldr     x1, =__bss_start
