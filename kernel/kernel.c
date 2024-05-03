@@ -36,12 +36,12 @@ void show_invalid_entry_message(s32 type, u32 esr, u32 address)
 void kernel_main(void)
 {
 	init_printf(0, putc);
-	LOG_DEBUG("Hello from Kernel\r\n");
+	LOG_DEBUG("Hello from Kernel");
 	irq_init();
 	timer_init(VC_GIC_SYSTEM_TIMER_IRQ_3);
     while (1) 
 	{
-        //LOG_DEBUG("Hello from Kernel\r\n");
-        //delay(500);
+        LOG_DEBUG("System Time: [%u]", get_sys_time_s());
+		wait_ms(1000); //
     }
 }

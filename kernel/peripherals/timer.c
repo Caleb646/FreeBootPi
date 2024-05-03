@@ -20,7 +20,7 @@ u32 get_arm_local_timer_freq(void)
 
 void sys_timer_irq_handler(u32 irq_id)
 {
-    // LOG_INFO("Received Timer IRQ [%u]", irq_id);
+    // LOG_INFO("Received Timer IRQ [%u]", timer.cur_ticks + 1);
     enter_critical(IRQ_DISABLED_FIQ_DISABLED_TARGET); 
 
     /* Update compare register */
@@ -35,7 +35,7 @@ void sys_timer_irq_handler(u32 irq_id)
             get32(VC_SYSTEM_TIMER_CS) | VC_SYSTEM_TIMER_IRQID_TO_MBIT(irq_id)
         );
 
-    if(++timer.cur_ticks % TIMER_UPDATES_PER_SECOND == 0)
+    if((++timer.cur_ticks % TIMER_UPDATES_PER_SECOND) == 0)
     {
         ++timer.cur_seconds;
     }
@@ -70,18 +70,28 @@ s32 timer_init(u32 timer_irq_id)
     return 1;
 }
 
-void wait_ms(u32 ms)
+u64 get_sys_time_s(void)
 {
-    u32 cticks = read32(VC_SYSTEM_TIMER_CLO);
-    u32 nticks = cticks + ((VC_SYSTEM_CLOCK_HZ / (1000 * TIMER_UPDATES_PER_SECOND)) * ms);
+    return timer.cur_seconds;
+}
+
+u64 get_sys_time_ms(void)
+{
+    return get_sys_time_s() * 1000;
+}
+
+void wait_us(u32 us)
+{
+    u32 cticks = get32(VC_SYSTEM_TIMER_CLO);
+    u32 nticks = cticks + ((VC_SYSTEM_CLOCK_HZ / 1000000) * us);
     overflow:
     /* If the current counter plus the necessary ticks needed overflows */
     if(nticks < cticks)
     {
         /* Wait until CLO overflows */
-        while(nticks < read32(VC_SYSTEM_TIMER_CLO)) {}
+        while(nticks < get32(VC_SYSTEM_TIMER_CLO)) {}
         /* Wait until CLO is greater than nticks*/
-        while(nticks > read32(VC_SYSTEM_TIMER_CLO)) {}
+        while(nticks > get32(VC_SYSTEM_TIMER_CLO)) {}
     }
     /* If close to overflowing go ahead and overflow */
     else if((nticks + 100000) < cticks)
@@ -91,6 +101,16 @@ void wait_ms(u32 ms)
     }
     else 
     {
-        while(read32(VC_SYSTEM_TIMER_CLO) < nticks) {}
+        while(get32(VC_SYSTEM_TIMER_CLO) < nticks) {}
     }
+}
+
+void wait_ms(u32 ms)
+{
+    wait_us(ms * 1000);
+}
+
+void wait_s(u32 s)
+{
+    wait_ms(s * 1000);
 }
