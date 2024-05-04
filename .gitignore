@@ -1,6 +1,7 @@
 **build**
 **arm_toolchain**
 **out**
+**unity**
 
 # Prerequisites
 *.d

@@ -7,6 +7,10 @@
 #define VID_CORE_MBOX_RESPONSE_CODE                     0x80000000
 #define VID_CORE_MBOX_PARSING_ERROR_CODE                0x80000001
 
+
+/*
+* https://github.com/raspberrypi/firmware/wiki/Mailbox-property-interface
+*/
 #define VID_CORE_MBOX_TAG_SETPOWER                      0x28001
 #define VID_CORE_MBOX_TAG_SETCLKRATE                    0x38002
 #define VID_CORE_MBOX_TAG_SETPHYWH                      0x48003
@@ -16,6 +20,10 @@
 #define VID_CORE_MBOX_TAG_SETPXLORDR                    0x48006
 #define VID_CORE_MBOX_TAG_GETFB                         0x40001
 #define VID_CORE_MBOX_TAG_GETPITCH                      0x40008
+/*
+* 
+*/
+#define VID_CORE_MBOX_TAG_GET_ARM_MEM_SIZE              0x00010005
 #define VID_CORE_MBOX_TAG_LAST                          0x0
 
 #define VID_CORE_BASE                                   (PBASE + 0x200B880)

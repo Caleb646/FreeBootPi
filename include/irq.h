@@ -11,6 +11,11 @@
 // Example: Linux Driver
 // https://github.com/torvalds/linux/blob/v6.9-rc3/drivers/irqchip/irq-gic-v3.c
 // https://github.com/torvalds/linux/blob/v6.9-rc3/include/linux/irqchip/arm-gic-v3.h
+
+/* 
+* https://github.com/raspberrypi/linux/blob/rpi-6.6.y/arch/arm/boot/dts/broadcom/bcm2711.dtsi
+*/
+
 #define GIC_BASE            (0xFF840000)
 
 /************************* Distributor Registers *********************************/
@@ -270,7 +275,15 @@
 #define GICC_DIR    (GICC_CPU_BASE + 0x1000) //   WO - Deactivate Interrupt Register
 
 /* 
-* ARM Per Core Interrupt IDs 
+* Private Peripheral Interrupts 
+*
+* https://github.com/raspberrypi/linux/blob/rpi-6.6.y/arch/arm/boot/dts/broadcom/bcm2711.dtsi
+*/
+#define GIC_NUM_PPIs                        32
+#define GIC_PPI_END                         31
+
+/* 
+* ARM Per Core (PPIs) Interrupt IDs 
 * 6 interrupts per core. Range from 7 to 31
 */
 #define ARM_CORE_HP_TIMER_IRQ(core_id)      ( (core_id * 4) + 0 + 7 )

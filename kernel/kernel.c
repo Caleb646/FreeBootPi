@@ -2,6 +2,7 @@
 #include "printf.h"
 #include "kernel.h"
 #include "irq.h"
+#include "mem.h"
 #include "peripherals/timer.h"
 #include "peripherals/uart.h"
 #include "arm/sysregs.h"
@@ -39,9 +40,13 @@ void kernel_main(void)
 	LOG_DEBUG("Hello from Kernel");
 	irq_init();
 	timer_init(VC_GIC_SYSTEM_TIMER_IRQ_3);
-    while (1) 
+	mem_init(NULLPTR);
+    while(1) 
 	{
-        LOG_DEBUG("System Time: [%u]", get_sys_time_s());
+		u8* ptr = (u8*)malloc(sizeof(size_t));
+		u8* ptr2 = (u8*)malloc(sizeof(size_t));
+        LOG_DEBUG("Address: [%X]  [%X] [%u]", ptr, ptr2, sizeof(node_s));
+		free(ptr);
 		wait_ms(1000); //
     }
 }

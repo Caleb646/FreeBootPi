@@ -27,6 +27,7 @@
 SECTIONS
 {
     . = 0x80000;     /* Kernel load address for AArch64 */
+    __kernel_plus_stacks_start = .;
     __kernel_start = .;
     .text : { KEEP(*(.text.boot)) *(.text .text.* .gnu.linkonce.t*) }
     .rodata : { *(.rodata .rodata.* .gnu.linkonce.r*) }
@@ -89,6 +90,8 @@ SECTIONS
        	__stack_end_core3__ = .;  
     }
 
+    __kernel_plus_stacks_end = .;
+    
    /DISCARD/ : { *(.comment) *(.gnu*) *(.note*) *(.eh_frame*) }
     __bss_size = (__bss_end - __bss_start); 
 }

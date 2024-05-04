@@ -29,7 +29,8 @@
 #define VC_SYSTEM_TIMER_IRQID_TO_CO_REG(irq_id) (VC_SYSTEM_TIMER_C0 + (irq_id - VC_GIC_BASE_IRQ) * sizeof(u32))
 /* Bits 0, 1, 2, 3 are for acking timers 0, 1, 2, 3 */
 #define VC_SYSTEM_TIMER_IRQID_TO_MBIT(irq_id) (1 << (irq_id - VC_GIC_BASE_IRQ))
-#define VC_SYSTEM_CLOCK_HZ                          1000000 // 54000000 
+/* https://github.com/raspberrypi/linux/blob/rpi-6.6.y/arch/arm/boot/dts/broadcom/bcm283x.dtsi#L77 */
+#define VC_SYSTEM_CLOCK_HZ                          1000000
 #define TIMER_UPDATES_PER_SECOND                    100
 
 #define SECONDS_TO_MS(seconds)      (seconds * 1000)

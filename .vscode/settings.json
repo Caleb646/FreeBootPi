@@ -7,6 +7,9 @@
         "timer.h": "c",
         "vidcore.h": "c",
         "regex": "c",
-        "base.h": "c"
+        "base.h": "c",
+        "charconv": "c",
+        "source_location": "c",
+        "stacktrace": "c"
     }
 }

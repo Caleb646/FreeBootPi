@@ -37,9 +37,6 @@
 #ifndef __ASSEMBLER__
 
 
-void delay(u64);
-
-
 #endif // __ASSEMBLER__
 
 #endif // _KERNEL_H
