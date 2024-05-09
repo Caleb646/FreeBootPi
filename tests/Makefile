@@ -13,38 +13,41 @@ else
 	TARGET_EXTENSION=out
 endif
 
+.PHONY: clean
+.PHONY: test
 
-PATHU = ./unity/src/
-PATHU += ../include/
+UNITY_PATH = unity/src/
+SRC_PATH = ../kernel/
+TESTS_PATH = tests/
+BUILD_PATH = build/
+DEPS_PATH = build/depends/
+OBJS_PATH = build/objs/
+RESULTS_PATH = build/results/
 
-PATHS = ./src/
-PATHS += ../kernel/
-PATHS += ../kernel/peripherals/
-PATHS += ../loader/
+BUILD_PATHS = $(BUILD_PATH) $(DEPS_PATH) $(OBJS_PATH) $(RESULTS_PATH)
 
-PATHT = ./tests/
+SRCT = $(wildcard $(TESTS_PATH)*.c)
 
-PATHB = build/
-PATHD = build/depends/
-PATHO = build/objs/
-PATHR = build/results/
-
-BUILD_PATHS = $(PATHB) $(PATHD) $(PATHO) $(PATHR)
-
-SRCT = $(wildcard $(PATHT)*.c)
+$(info $$D = $(SRCT))
 
 COMPILE=gcc -c
 LINK=gcc
 DEPEND=gcc -MM -MG -MF
-CFLAGS=-I. -I$(PATHU) -I$(PATHS) -DTEST
+C_INCLUDE = -I.
+C_INCLUDE += -I$(UNITY_PATH)
+C_INCLUDE += -I$(SRC_PATH)
+C_INCLUDE += -I../include # source include path
+C_INCLUDE += -I./include # test include path
+CFLAGS = $(C_INCLUDE) -DTEST
+CFLAGS += -g # add debug information
 
-RESULTS = $(patsubst $(PATHT)Test%.c,$(PATHR)Test%.txt,$(SRCT) )
+# NOTE: format of test files -> test_mem.c and test_sync.c corresponds to src files -> mem.c and sync.c
+RESULTS = $(patsubst $(TESTS_PATH)test_%.c, $(RESULTS_PATH)test_%.txt, $(SRCT))
 
-PASSED = `grep -s PASS $(PATHR)*.txt`
-FAIL = `grep -s FAIL $(PATHR)*.txt`
-IGNORE = `grep -s IGNORE $(PATHR)*.txt`
+PASSED = `grep -s PASS $(RESULTS_PATH)*.txt`
+FAIL = `grep -s FAIL $(RESULTS_PATH)*.txt`
+IGNORE = `grep -s IGNORE $(RESULTS_PATH)*.txt`
 
-.PHONY: test
 test: $(BUILD_PATHS) $(RESULTS)
 	@echo "-----------------------\nIGNORES:\n-----------------------"
 	@echo "$(IGNORE)"
@@ -54,43 +57,42 @@ test: $(BUILD_PATHS) $(RESULTS)
 	@echo "$(PASSED)"
 	@echo "\nDONE"
 
-$(PATHR)%.txt: $(PATHB)%.$(TARGET_EXTENSION)
+$(RESULTS_PATH)%.txt: $(BUILD_PATH)%.$(TARGET_EXTENSION)
 	-./$< > $@ 2>&1
 
-$(PATHB)Test%.$(TARGET_EXTENSION): $(PATHO)Test%.o $(PATHO)%.o $(PATHO)unity.o
+$(BUILD_PATH)test_%.$(TARGET_EXTENSION): $(OBJS_PATH)test_%.o $(OBJS_PATH)%.o $(OBJS_PATH)unity.o
 	$(LINK) -o $@ $^
 
-$(PATHO)%.o:: $(PATHT)%.c
+$(OBJS_PATH)%.o:: $(TESTS_PATH)%.c
 	$(COMPILE) $(CFLAGS) $< -o $@
 
-$(PATHO)%.o:: $(PATHS)%.c
+$(OBJS_PATH)%.o:: $(SRC_PATH)%.c
 	$(COMPILE) $(CFLAGS) $< -o $@
 
-$(PATHO)%.o:: $(PATHU)%.c $(PATHU)%.h
+$(OBJS_PATH)%.o:: $(UNITY_PATH)%.c $(UNITY_PATH)%.h
 	$(COMPILE) $(CFLAGS) $< -o $@
 
-$(PATHD)%.d:: $(PATHT)%.c
+$(DEPS_PATH)%.d:: $(TESTS_PATH)%.c
 	$(DEPEND) $@ $<
 
-$(PATHB):
-	$(MKDIR) $(PATHB)
+$(BUILD_PATH):
+	$(MKDIR) $(BUILD_PATH)
 
-$(PATHD):
-	$(MKDIR) $(PATHD)
+$(DEPS_PATH):
+	$(MKDIR) $(DEPS_PATH)
 
-$(PATHO):
-	$(MKDIR) $(PATHO)
+$(OBJS_PATH):
+	$(MKDIR) $(OBJS_PATH)
 
-$(PATHR):
-	$(MKDIR) $(PATHR)
+$(RESULTS_PATH):
+	$(MKDIR) $(RESULTS_PATH)
 
-.PHONY: clean
 clean:
-	$(CLEANUP) $(PATHO)*.o
-	$(CLEANUP) $(PATHB)*.$(TARGET_EXTENSION)
-	$(CLEANUP) $(PATHR)*.txt
+	$(CLEANUP) $(OBJS_PATH)*.o
+	$(CLEANUP) $(BUILD_PATH)*.$(TARGET_EXTENSION)
+	$(CLEANUP) $(RESULTS_PATH)*.txt
 
-.PRECIOUS: $(PATHB)Test%.$(TARGET_EXTENSION)
-.PRECIOUS: $(PATHD)%.d
-.PRECIOUS: $(PATHO)%.o
-.PRECIOUS: $(PATHR)%.txt
+.PRECIOUS: $(BUILD_PATH)test_%.$(TARGET_EXTENSION)
+.PRECIOUS: $(DEPS_PATH)%.d
+.PRECIOUS: $(OBJS_PATH)%.o
+.PRECIOUS: $(RESULTS_PATH)test_%.txt
