@@ -34,13 +34,15 @@ extern u32 __kernel_plus_stacks_end;
 
 #define FALSE 		0
 
-#define GCC_NODISCARD 		__attribute__ ((__warn_unused_result__))
+#define GCC_NODISCARD 							__attribute__ ((__warn_unused_result__))
+#define GCC_ALIGN_ADDR(byte_alignment) 			__attribute__((aligned(byte_alignment)))
 
 void put32(u64 addr, u32 val);
 u32 get32(u64 addr);
 u64 get_arm_core_id(void);
 u64 get_arm_exception_lvl(void);
 void memset(void* src, u8 value, size_t nbytes);
+void memcopy(void* src, size_t nbytes, void* dest);
 
 /*
 ********* Cache ***********************

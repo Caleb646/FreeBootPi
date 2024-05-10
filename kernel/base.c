@@ -37,3 +37,13 @@ void memset(void* src, u8 value, size_t nbytes)
 		*ptr++ = value;
 	}
 }
+
+void memcopy(void* src, size_t nbytes, void* dest)
+{
+	u8* src_ptr = (u8*)src;
+	u8* dest_ptr = (u8*)dest;
+	while(nbytes-- > 0)
+	{
+		*dest_ptr++ = *src_ptr++;
+	}
+}

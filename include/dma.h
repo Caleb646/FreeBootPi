@@ -2,7 +2,6 @@
 #define	_DMA_H
 
 #include "base.h"
-#include "mem.h"
 
 #define DMA_BASE                                    (PBASE + 0x2007000)
 #define DMA_CHANNEL_OFFSET                          0x100
@@ -113,10 +112,32 @@
 */
 #define DMA_CONTROL_BLOCK_BYTE_ALIGNMENT        32
 
-#define DMA_CHANNEL_IS_ACTIVE(channel_id)       ((REG_PTR32(DMA_CONTROL_STATUS(channel_id)) & DMA_CONTROL_STATUS_DMA_ACTIVE_BIT) == DMA_CONTROL_STATUS_DMA_ACTIVE_BIT)
-#define DMA_CHANNEL_HAS_ERROR(channel_id)       ((REG_PTR32(DMA_CONTROL_STATUS(channel_id)) & DMA_CONTROL_STATUS_ERROR_BIT) == DMA_CONTROL_STATUS_ERROR_BIT)
-
 #ifndef __ASSEMBLER__
+
+#define DMA_CHANNEL_IS_ACTIVE(channel_id)       ((get32(DMA_CONTROL_STATUS(channel_id)) & DMA_CONTROL_STATUS_DMA_ACTIVE_BIT) == DMA_CONTROL_STATUS_DMA_ACTIVE_BIT)
+#define DMA_CHANNEL_HAS_ERROR(channel_id)       ((get32(DMA_CONTROL_STATUS(channel_id)) & DMA_CONTROL_STATUS_ERROR_BIT) == DMA_CONTROL_STATUS_ERROR_BIT)
+
+typedef struct dma_config_s
+{
+    u32 dma_start_id;
+    u32 dma_lite_start_id;
+    u32 dma4_start_id;
+    u32 dma4_end_id;
+} dma_config_s;
+
+typedef struct anonymous_control_block_s
+{
+    u32 a1;
+    u32 a2;
+    u32 a3;
+    u32 a4;
+    u32 a5;
+    u32 a6;
+    u32 a7;
+    u32 a8;
+} anonymous_control_block_s;
+
+// extern anonymous_control_block_s GCC_ALIGN_ADDR(DMA_CONTROL_BLOCK_BYTE_ALIGNMENT) allocated_channel_cbs[MAX_DMA_CHANNEL_ID + 1];
 
 /*
 * A control block's address must be aligned on a 32 byte boundary
@@ -129,7 +150,8 @@ typedef struct control_block_s
     u32 transfer_length;
     u32 stride_mode;
     u32 next_control_block_addr;
-    u64 reserved;
+    u32 reserved1;
+    u32 reserved2;
 } control_block_s;
 
 typedef struct dma_lite_control_block_s
@@ -140,7 +162,8 @@ typedef struct dma_lite_control_block_s
     u32 transfer_length;
     u32 reserved1;
     u32 next_control_block_addr;
-    u64 reserved2;
+    u32 reserved2;
+    u32 reserved3;
 } dma_lite_control_block_s;
 
 typedef struct dma4_control_block_s
@@ -164,20 +187,13 @@ typedef enum dma_type_t
 
 typedef enum dma_status_t 
 {
-    DMA_CHANNEL_OCCUPIED,
+    DMA_NO_OPEN_CHANNELS,
     DMA_ERROR_ON_TRANSFER,
+    DMA_FAILED_ALLOC_CB,
     DMA_OK,
 } dma_status_t;
 
-/*
-* Dynamically allocate and zero initialize control block
-*/
-#define DMA_CONTROL_BLOCK_INIT()     (align_allocate_set(sizeof(control_block_s), 0, DMA_CONTROL_BLOCK_BYTE_ALIGNMENT))
-
-void dma_allocate_channel(u32 channel_id);
-void dma_start_transfer(u32 channel_id);
-dma_status_t dma_transfer(void* control_block, u32 channel_id, dma_type_t dma_type);
-
+dma_status_t dma_transfer(void* control_block, dma_type_t dma_type);
 s32 dma_init(void);
 
 #endif // __ASSEMBLER__

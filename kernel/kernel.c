@@ -3,6 +3,7 @@
 #include "kernel.h"
 #include "irq.h"
 #include "mem.h"
+#include "dma.h"
 #include "peripherals/timer.h"
 #include "peripherals/uart.h"
 #include "arm/sysregs.h"
@@ -41,6 +42,7 @@ void kernel_main(void)
 	irq_init();
 	timer_init(VC_GIC_SYSTEM_TIMER_IRQ_3);
 	mem_init(NULLPTR);
+	dma_init();
     while(1) 
 	{
 		// u8* ptr = (u8*)malloc(sizeof(size_t));
