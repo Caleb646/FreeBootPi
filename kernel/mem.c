@@ -1,13 +1,21 @@
 #include "mem.h"
-#ifndef TEST
+#ifndef ON_HOST_TESTING
     #include "printf.h"
+    #include "sync.h"
 #endif
-
 
 static heap_s heap;
 
-void* allocate(size_t sz)
+/*
+* \brief
+* \param sz size of allocation to make in bytes
+* \param alignment if alignment == 8, align allocation address on 8 byte boundary.
+*   Must be a power of 2.
+*/
+GCC_NODISCARD void* align_allocate(size_t sz, size_t alignment)
 {
+    // Interrupt but NOT thread safe
+    s32 status = enter_critical(IRQ_DISABLED_FIQ_DISABLED_TARGET);
     node_s* prev = NULLPTR;
     node_s** cur = &heap.free_list_head;
     node_s* alloc = NULLPTR;
@@ -31,7 +39,10 @@ void* allocate(size_t sz)
         prev = (*cur);
         (*cur) = (*cur)->next;
     }
-    if(alloc == NULLPTR && ( (uintptr_t)heap.end - (uintptr_t)heap.cur_pos ) < (sz + sizeof(size_t)))
+    if(
+        alloc == NULLPTR && 
+        ( (uintptr_t)heap.end - (uintptr_t)heap.cur_pos ) < (sz + sizeof(size_t))
+    )
     {
         /* Aligning address using modulo */
         // u32 alignment = ((uintptr_t)(heap_current + sizeof(size_t))) % MALLOC_ADDR_ALIGNMENT;
@@ -44,17 +55,32 @@ void* allocate(size_t sz)
         * with the current memory address + (alignment - 1) + sizeof(size_t) returns the aligned address for
         * alloc->next.
         */
-        heap.cur_pos = (u8*) ( ((uintptr_t)heap.cur_pos + (uintptr_t)(MALLOC_ADDR_ALIGNMENT - 1) + sizeof(size_t)) & (uintptr_t)MALLOC_ADDR_ALIGNMENT_MASK );
+        heap.cur_pos = (u8*) ( ((uintptr_t)heap.cur_pos + (uintptr_t)(alignment - 1) + sizeof(size_t)) & (uintptr_t)(~(alignment-1)) );
         alloc = (node_s*)( (uintptr_t)heap.cur_pos - sizeof(size_t) );
         alloc->sz = sz;
         heap.cur_pos += sz;
     }
 
-    return (void*)( &(alloc->next) );
+    void* ret = (void*)( &(alloc->next) );
+    status = leave_critical();
+    return ret;
+}
+
+GCC_NODISCARD void* align_allocate_set(size_t sz, u8 value, size_t alignment)
+{
+    void* ptr = align_allocate(sz, alignment);
+    memset(ptr, value, sz);
+    return ptr;
+}
+
+GCC_NODISCARD void* allocate(size_t sz)
+{
+    return align_allocate(sz, MALLOC_ADDR_ALIGNMENT);
 }
 
 void delete(void* ptr)
 {
+    s32 status = enter_critical(IRQ_DISABLED_FIQ_DISABLED_TARGET);
     node_s* node = (node_s*)( ((u8*)ptr) - sizeof(size_t) );
     size_t alloc_size = node->sz;
     if(heap.free_list_head == NULLPTR)
@@ -79,13 +105,14 @@ void delete(void* ptr)
         }
         cur = cur->next;
     }
+    status = leave_critical();
 }
 
 s32 mem_init(heap_s* hp)
 {
     if(hp == NULLPTR) 
     {
-    #ifndef TEST
+    #ifndef ON_HOST_TESTING
         heap.start = (u8*)ARM_DRAM_HIGH_MEM_START;
         heap.end = (u8*)ARM_DRAM_HIGH_MEM_END;
         heap.cur_pos = (u8*)ARM_DRAM_HIGH_MEM_START;

@@ -36,7 +36,7 @@ C_INCLUDE += -I$(UNITY_PATH)
 C_INCLUDE += -I$(SRC_PATH)
 C_INCLUDE += -I../include # source include path
 C_INCLUDE += -I./include # test include path
-CFLAGS = $(C_INCLUDE) -DTEST
+CFLAGS = $(C_INCLUDE) -DON_HOST_TESTING
 CFLAGS += -g # add debug information
 
 # NOTE: format of test files -> test_mem.c and test_sync.c corresponds to src files -> mem.c and sync.c

@@ -28,3 +28,12 @@ u64 get_arm_exception_lvl(void)
 		);
 	return lvl;
 }
+
+void memset(void* src, u8 value, size_t nbytes)
+{
+	u8* ptr = (u8*)src;
+	while(nbytes-- > 0)
+	{
+		*ptr++ = value;
+	}
+}

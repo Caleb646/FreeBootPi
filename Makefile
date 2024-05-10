@@ -1,6 +1,7 @@
 BUILD_DIR = ./build
 OUTDIR = ./out
 
+# Reduce make output to errors or warnings using: make -s
 
 .PHONY: all
 all: kernel.img loader.img

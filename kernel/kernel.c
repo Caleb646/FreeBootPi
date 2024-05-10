@@ -43,10 +43,10 @@ void kernel_main(void)
 	mem_init(NULLPTR);
     while(1) 
 	{
-		u8* ptr = (u8*)malloc(sizeof(size_t));
-		u8* ptr2 = (u8*)malloc(sizeof(size_t));
-        LOG_DEBUG("Address: [%X]  [%X] [%u]", ptr, ptr2, sizeof(node_s));
-		free(ptr);
+		// u8* ptr = (u8*)malloc(sizeof(size_t));
+		// u8* ptr2 = (u8*)malloc(sizeof(size_t));
+        // LOG_DEBUG("Address: [%X]  [%X] [%u]", ptr, ptr2, sizeof(node_s));
+		// free(ptr);
 		wait_ms(1000); //
     }
 }

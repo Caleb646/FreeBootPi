@@ -52,7 +52,10 @@ typedef struct heap_s
     node_s* free_list_head;
 } heap_s;
 
-void* allocate(size_t sz);
+GCC_NODISCARD void* align_allocate(size_t sz, size_t alignment);
+GCC_NODISCARD void* align_allocate_set(size_t sz, u8 value, size_t alignment);
+GCC_NODISCARD void* allocate(size_t sz);
+
 void delete(void* ptr);
 s32 mem_init(heap_s*);
 

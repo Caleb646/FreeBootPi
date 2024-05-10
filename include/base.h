@@ -32,10 +32,15 @@ extern u32 __kernel_plus_stacks_end;
 #define REG_PTR32(reg_addr) *((u32 volatile *)reg_addr)
 #define REG_PTR64(reg_addr) *((u64 volatile *)reg_addr)
 
+#define FALSE 		0
+
+#define GCC_NODISCARD 		__attribute__ ((__warn_unused_result__))
+
 void put32(u64 addr, u32 val);
 u32 get32(u64 addr);
 u64 get_arm_core_id(void);
 u64 get_arm_exception_lvl(void);
+void memset(void* src, u8 value, size_t nbytes);
 
 /*
 ********* Cache ***********************

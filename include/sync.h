@@ -4,6 +4,8 @@
 #include "base.h"
 
 /********************** ARM Sync ***************************/
+/* Operation only to the outer shareable domain and waits only for stores to complete*/
+#define DATA_MEMORY_BARRIER_OUTER_STORES()         asm volatile("dmb ISHST" ::: "memory")
 /* ISH --- Operation only to the Inner Shareable domain (i.e. visible to all or some cores) */
 #define DATA_MEMORY_BARRIER_INNER_ANY()         asm volatile("dmb ISH" ::: "memory")
 /* NSH --- Operation only out to the point of unification (i.e. visible to this core)  */
