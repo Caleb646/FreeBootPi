@@ -52,8 +52,8 @@ typedef struct heap_s
     node_s* free_list_head;
 } heap_s;
 
-void* malloc(size_t sz);
-void free(void* ptr);
+void* allocate(size_t sz);
+void delete(void* ptr);
 s32 mem_init(heap_s*);
 
 

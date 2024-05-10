@@ -1,16 +1,12 @@
 #include "mem.h"
-#include "printf.h"
+#ifndef TEST
+    #include "printf.h"
+#endif
 
 
-static heap_s heap = {
-    .start = (u8*)ARM_DRAM_HIGH_MEM_START,
-    .end = (u8*)ARM_DRAM_HIGH_MEM_END,
-    .cur_pos = (u8*)ARM_DRAM_HIGH_MEM_START,
-    .size = ARM_DRAM_HIGH_MEM_END - ARM_DRAM_MID_MEM_START,
-    .free_list_head = NULLPTR
-};
+static heap_s heap;
 
-void* malloc(size_t sz)
+void* allocate(size_t sz)
 {
     node_s* prev = NULLPTR;
     node_s** cur = &heap.free_list_head;
@@ -57,7 +53,7 @@ void* malloc(size_t sz)
     return (void*)( &(alloc->next) );
 }
 
-void free(void* ptr)
+void delete(void* ptr)
 {
     node_s* node = (node_s*)( ((u8*)ptr) - sizeof(size_t) );
     size_t alloc_size = node->sz;
@@ -87,7 +83,16 @@ void free(void* ptr)
 
 s32 mem_init(heap_s* hp)
 {
-    if(hp == NULLPTR) {}
+    if(hp == NULLPTR) 
+    {
+    #ifndef TEST
+        heap.start = (u8*)ARM_DRAM_HIGH_MEM_START;
+        heap.end = (u8*)ARM_DRAM_HIGH_MEM_END;
+        heap.cur_pos = (u8*)ARM_DRAM_HIGH_MEM_START;
+        heap.size = ARM_DRAM_HIGH_MEM_END - ARM_DRAM_HIGH_MEM_START;
+        heap.free_list_head = NULLPTR;
+    #endif
+    }
     else 
     {
         heap = *hp;

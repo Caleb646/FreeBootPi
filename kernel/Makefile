@@ -40,6 +40,10 @@
 # The % character can be used for wildcard pattern-matching, to provide generic targets. For example:
 # %.o: %.c ## When % appears in the dependency list, it is replaced 
 # with the same string that was used to perform substitution in the target.
+# 		The % in make is a pattern match and it only works in pattern rules: 
+#		pattern rules must have a % in the target (like the second rule you have, %.o : %.c). 
+#		If you don't have a % in the target, then make just thinks that the % in the prerequisite 
+#		list is a normal character like an a or b or whatever.
 
 # special variables for matching filenames. Some of them are:
 

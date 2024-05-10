@@ -28,8 +28,6 @@ BUILD_PATHS = $(BUILD_PATH) $(DEPS_PATH) $(OBJS_PATH) $(RESULTS_PATH)
 
 SRCT = $(wildcard $(TESTS_PATH)*.c)
 
-$(info $$D = $(SRCT))
-
 COMPILE=gcc -c
 LINK=gcc
 DEPEND=gcc -MM -MG -MF
