@@ -28,13 +28,26 @@
 #define ARM_DRAM_LOW_MEM_END    VC_DRAM_MEM_START
 #define ARM_DRAM_MID_MEM_START  0x040000000 /* Top of SDRAM for the Video Core */
 #define ARM_DRAM_MID_MEM_END    0x0FC000000 /* Start of the Main Peripherals */
+/*
+* High mem requires a 35 bit addresses
+*/
 #define ARM_DRAM_HIGH_MEM_START 0x100000000
 #define ARM_DRAM_HIGH_MEM_END   0x400000000 /* 1.6 GBs */
 
 #define MALLOC_ADDR_ALIGNMENT        64 /* Size of cache line */
 #define MALLOC_ADDR_ALIGNMENT_MASK   (~(MALLOC_ADDR_ALIGNMENT - 1)) /* Size of cache line */
 
+#define MEM_NUM_HEAP_SECTIONS       3
+
 #ifndef __ASSEMBLER__
+
+typedef enum heap_id_t
+{
+    MEM_LOW_HEAP_ID = 0,
+    MEM_MID_HEAP_ID = 1,
+    MEM_HIGH_HEAP_ID = 2,
+    MEM_STANDARD_HEAP_ID = MEM_MID_HEAP_ID
+} heap_id_t;
 
 /* Do NOT adjust order of node_s members*/
 typedef struct node_s
@@ -53,6 +66,7 @@ typedef struct heap_s
 } heap_s;
 
 GCC_NODISCARD void* align_allocate(size_t sz, size_t alignment);
+GCC_NODISCARD void* calign_allocate(heap_id_t heap_id, size_t sz, size_t alignment);
 GCC_NODISCARD void* align_allocate_set(size_t sz, u8 value, size_t alignment);
 GCC_NODISCARD void* allocate(size_t sz);
 

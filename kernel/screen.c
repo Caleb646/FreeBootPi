@@ -55,7 +55,8 @@ void screen_init()
     s32 status = vid_core_call(vid_core_buffer, VID_CORE_MBOX_CHANNEL_PROP);
     if(status > 0 && vid_core_buffer[20] == 32 && vid_core_buffer[28] != 0)
     {
-        vid_core_buffer[28] &= 0x3FFFFFFF;    // Convert GPU address to ARM address
+        // vid_core_buffer[28] &= 0x3FFFFFFF;    // Convert GPU address to ARM address
+        vid_core_buffer[28] = VPU_BUS_TO_ARM_ADDR(vid_core_buffer[28]); // Convert GPU address to ARM address
         phy_width = vid_core_buffer[5];       // Physical width
         phy_height = vid_core_buffer[6];      // Physical height
         virt_width = vid_core_buffer[10];     // Virtual width

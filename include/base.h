@@ -2,8 +2,8 @@
 #define	_BASE_H
 
 // Raspberry Pi 4b
-#define PBASE 0x0FC000000 // When in "Low Peripheral Mode"
-#define ARM_NUM_CORES 4
+#define PBASE 									0x0FC000000 // When in "Low Peripheral Mode"
+#define ARM_NUM_CORES 							4
 
 #ifndef __ASSEMBLER__
 
@@ -24,18 +24,33 @@ typedef void (*irq_handler_t)(u32 irq_id);
 extern u32 __kernel_plus_stacks_start;
 extern u32 __kernel_plus_stacks_end;
 
-#define KERNEL_START &__kernel_plus_stacks_start
-#define KERNEL_END &__kernel_plus_stacks_end
-#define KERNEL_SIZE (KERNEL_END - KERNEL_START)
+#define KERNEL_START 							&__kernel_plus_stacks_start
+#define KERNEL_END 								&__kernel_plus_stacks_end
+#define KERNEL_SIZE 							(KERNEL_END - KERNEL_START)
 
-#define NULLPTR ((void*)0)
-#define REG_PTR32(reg_addr) *((u32 volatile *)reg_addr)
-#define REG_PTR64(reg_addr) *((u64 volatile *)reg_addr)
+#define NULLPTR 								((void*)0)
+#define REG_PTR32(reg_addr) 					*((u32 volatile *)reg_addr)
+#define REG_PTR64(reg_addr) 					*((u64 volatile *)reg_addr)
 
-#define FALSE 		0
+#define FALSE 									0
 
 #define GCC_NODISCARD 							__attribute__ ((__warn_unused_result__))
 #define GCC_ALIGN_ADDR(byte_alignment) 			__attribute__((aligned(byte_alignment)))
+
+/*
+* A mask of 0x3FFF_FFFF (~0xC000_0000) is used to convert a VPU Bus address to an ARM physical address. 
+* This works because the top 2 bits are used by the VPU for cache control 
+* and the bottom 30 bits are the physical address in SRAM.
+* So a bus address of 0xC000_0020 gets mapped to the physical SRAM address of 0x20
+*/
+#define VPU_BUS_TO_ARM_ADDR(addr)				(addr & (~0xC0000000))
+/*
+* A 32 bit VPU Bus address uses the most significant 2 bits for cache control. 
+* The DMA bus address space is 0xC000_0000 to 0xFFFF_FFFF and it is an uncached space. 
+* It represents the 1st GB of SRAM. So a physical SRAM address of 0x20 gets mapped to the bus address of 0xC000_0020
+*/
+#define ARM_TO_VPU_BUS_ADDR(addr)				(VPU_BUS_TO_ARM_ADDR(addr) | 0xC0000000)
+
 
 void put32(u64 addr, u32 val);
 u32 get32(u64 addr);

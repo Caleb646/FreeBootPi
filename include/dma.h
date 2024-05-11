@@ -100,6 +100,36 @@
 #define DMA_DEBUG(channel_id)                       (DMA_BASE + (DMA_CHANNEL_OFFSET * channel_id) + 0x020)
 
 /*
+* Interrupt status of each DMA channel. Read ONLY
+*/
+#define DMA_GLOBAL_INT_STATUS                       (DMA_BASE + 0xFE0)
+/*
+* Global enable bits for each DMA channel.
+* Bits 31:28 = PAGELITE = Set the 1G SDRAM ram page that the DMA Lite engines
+*   (DMA7-10) will access when addressing the 1G uncached
+*   range C000_0000->ffff_ffff
+*   E.g. setting this to 1 will mean that when the DMA writes to
+*   C000_0000 (uncached) the final address in SDRAM will be
+*   4000_0000 ( pagelite<<30 | addr[29:0] )
+*   This allows the 1G uncached page to be moved around the
+*   16G SDRAM space
+*
+* Bits 27:24 = PAGE = Set the 1G SDRAM ram page that the 30-bit DMA engines
+*   (DMA0-6) will access when addressing the 1G uncached
+*   range C000_0000->ffff_ffff
+*   E.g. setting this to 1 will mean that when the DMA writes to
+*   C000_0000 (uncached) the final address in SDRAM will be
+*   4000_0000 ( page<<30 | addr[29:0] )
+*   This allows the 1G uncached page to be moved around the
+*   16G SDRAM space
+*
+* Bits 14:0 = ENABLE = Control which DMA channels are enabled. 
+*   If Bit 14 = 1 then DMA channel 14 = enabled
+*   ALL channels are enabled by default.
+*/
+#define DMA_GLOBAL_ENABLE                           (DMA_BASE + 0xFF0)
+
+/*
 * DMA Channel 15 is exclusively used by the VPU
 *
 * DMA channels 0 through 6 are Standard DMA channels
@@ -111,6 +141,7 @@
 * A control block's address must be aligned on a 32 byte boundary
 */
 #define DMA_CONTROL_BLOCK_BYTE_ALIGNMENT        32
+#define DMA4_CB_ADDR_SHIFT                      5
 
 #ifndef __ASSEMBLER__
 

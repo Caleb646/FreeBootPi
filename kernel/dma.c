@@ -54,6 +54,12 @@ static s32 find_open_channel(dma_type_t dma_type)
     return -1;
 }
 
+/*
+* \brief
+* \param control_block The src and dest addresses MUST be VPU Bus Addresses not SRAM Physical addresses. Because of
+*   this both the src and dest addresses must also point to a location in the 1st GB of SRAM. Unless DMA4 is used.
+*   DMA4 can use 40 bit addresses.
+*/
 dma_status_t dma_transfer(void* control_block, dma_type_t dma_type)
 {
     s32 channel_id = find_open_channel(dma_type);
@@ -67,11 +73,20 @@ dma_status_t dma_transfer(void* control_block, dma_type_t dma_type)
     }
     is_channel_allocated[channel_id] = 1;
     memcopy(control_block, sizeof(anonymous_control_block_s), &(allocated_channel_cbs[channel_id]) );
-    // NOTE: only have 32 - 5 bits to address each control block. allocated_channel_cbs
-    // is currently stored somewhere around 0x84260 in the .bss section. If it is moved and the address
-    // takes more than 27 bits to represent the u32 cast will truncate it and weird things
-    // will happen.
-    put32(DMA_CONTROL_BLOCK_ADDR(channel_id), (u32)(&(allocated_channel_cbs[channel_id])));
+    u32 control_block_addr = (u32)(&(allocated_channel_cbs[channel_id]));
+    if(dma_type == DMA4)
+    {
+        control_block_addr >>= DMA4_CB_ADDR_SHIFT;
+    }
+    else
+    {
+        // NOTE: only have 32 - 5 bits to address each control block. allocated_channel_cbs
+        // is currently stored somewhere around 0x84260 in the .bss section. If it is moved and the address
+        // takes more than 27 bits to represent the u32 cast will truncate it and weird things
+        // will happen.
+        control_block_addr = ARM_TO_VPU_BUS_ADDR(control_block_addr);
+    }
+    put32(DMA_CONTROL_BLOCK_ADDR(channel_id), control_block_addr);
     // Ensure control block address is written and visible to DMA before DMA is activated
     DATA_MEMORY_BARRIER_OUTER_STORES();
     // Clear error, interrupt flags and enable channel
