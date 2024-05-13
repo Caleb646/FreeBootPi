@@ -1,5 +1,9 @@
 #include "mem.h"
-#ifndef ON_HOST_TESTING
+#ifdef ON_HOST_TESTING
+    extern u8 low_heap[TEST_HEAP_SIZE];
+    extern u8 mid_heap[TEST_HEAP_SIZE];
+    extern u8 high_heap[TEST_HEAP_SIZE];
+#else
     #include "printf.h"
     #include "sync.h"
 #endif
@@ -158,32 +162,32 @@ s32 mem_init(heap_s* hp)
 {
     if(hp == NULLPTR) 
     {
-    #ifndef ON_HOST_TESTING
-    heap_s low = {
-        .start = (u8*)ARM_DRAM_LOW_MEM_START,
-        .end = (u8*)ARM_DRAM_LOW_MEM_END,
-        .cur_pos = (u8*)ARM_DRAM_LOW_MEM_START,
-        .size = ARM_DRAM_LOW_MEM_END - ARM_DRAM_LOW_MEM_START,
-        .free_list_head = NULLPTR
-    };
-    heap_s mid = {
-        .start = (u8*)ARM_DRAM_MID_MEM_START,
-        .end = (u8*)ARM_DRAM_MID_MEM_END,
-        .cur_pos = (u8*)ARM_DRAM_MID_MEM_START,
-        .size = ARM_DRAM_MID_MEM_END - ARM_DRAM_MID_MEM_START,
-        .free_list_head = NULLPTR
-    };
-    heap_s high = {
-        .start = (u8*)ARM_DRAM_HIGH_MEM_START,
-        .end = (u8*)ARM_DRAM_HIGH_MEM_END,
-        .cur_pos = (u8*)ARM_DRAM_HIGH_MEM_START,
-        .size = ARM_DRAM_HIGH_MEM_END - ARM_DRAM_HIGH_MEM_START,
-        .free_list_head = NULLPTR
-    };
-    heaps[MEM_LOW_HEAP_ID] = low;
-    heaps[MEM_MID_HEAP_ID] = mid;
-    heaps[MEM_HIGH_HEAP_ID] = high;
-    #endif
+        //#ifndef ON_HOST_TESTING
+        heap_s low = {
+            .start = (u8*)ARM_DRAM_LOW_MEM_START,
+            .end = (u8*)ARM_DRAM_LOW_MEM_END,
+            .cur_pos = (u8*)ARM_DRAM_LOW_MEM_START,
+            .size = ARM_DRAM_LOW_MEM_END - ARM_DRAM_LOW_MEM_START,
+            .free_list_head = NULLPTR
+        };
+        heap_s mid = {
+            .start = (u8*)ARM_DRAM_MID_MEM_START,
+            .end = (u8*)ARM_DRAM_MID_MEM_END,
+            .cur_pos = (u8*)ARM_DRAM_MID_MEM_START,
+            .size = ARM_DRAM_MID_MEM_END - ARM_DRAM_MID_MEM_START,
+            .free_list_head = NULLPTR
+        };
+        heap_s high = {
+            .start = (u8*)ARM_DRAM_HIGH_MEM_START,
+            .end = (u8*)ARM_DRAM_HIGH_MEM_END,
+            .cur_pos = (u8*)ARM_DRAM_HIGH_MEM_START,
+            .size = ARM_DRAM_HIGH_MEM_END - ARM_DRAM_HIGH_MEM_START,
+            .free_list_head = NULLPTR
+        };
+        heaps[MEM_LOW_HEAP_ID] = low;
+        heaps[MEM_MID_HEAP_ID] = mid;
+        heaps[MEM_HIGH_HEAP_ID] = high;
+        //#endif
     }
     return 1;
 }
