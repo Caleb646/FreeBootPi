@@ -10,6 +10,11 @@
 #define GLYPH_WIDTH 8
 #define GLYPH_HEIGHT 8
 
+void screen_init(void);
+void screen_draw_pixel(u32 x, u32 y, u32 pixel_color);
+void screen_draw_char(u32 x, u32 y, char c);
+void screen_draw_string(u32 x, u32 y, char* str);
+
 // Source: https://github.com/dhepper/font8x8/blob/master/font8x8_basic.h
 s8 const font[NUM_GLYPHS][BYTES_PER_GLYPH] = {
     { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00},   // U+0000 (nul)

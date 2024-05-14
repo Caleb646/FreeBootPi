@@ -137,11 +137,21 @@
 * DMA channels 11 through 14 are DMA 4 channels
 */
 #define MAX_DMA_CHANNEL_ID                      14
+#define DMA_CHANNEL_START                       0
+#define DMA_CHANNEL_END                         6
+#define DMA_LITE_CHANNEL_START                  7
+#define DMA_LITE_CHANNEL_END                    10
+#define DMA_4_CHANNEL_START                     11
+#define DMA_4_CHANNEL_END                       14
 /*
 * A control block's address must be aligned on a 32 byte boundary
 */
 #define DMA_CONTROL_BLOCK_BYTE_ALIGNMENT        32
 #define DMA4_CB_ADDR_SHIFT                      5
+/*
+* 2 most significant bits are reserved
+*/
+#define DMA_MAX_TRANSFER_LENGTH                 0x3FFFFFFF
 
 #ifndef __ASSEMBLER__
 
@@ -218,14 +228,16 @@ typedef enum dma_type_t
 
 typedef enum dma_status_t 
 {
+    DMA_OK = 1,
     DMA_NO_OPEN_CHANNELS,
     DMA_ERROR_ON_TRANSFER,
-    DMA_FAILED_ALLOC_CB,
-    DMA_OK,
+    DMA_FAILED_ALLOC_CB
+    
 } dma_status_t;
 
-dma_status_t dma_transfer(void* control_block, dma_type_t dma_type);
-s32 dma_init(void);
+dma_status_t dma_transfer(anonymous_control_block_s* control_block, dma_type_t dma_type);
+dma_status_t dma_memcpy(u64 src_addr, u64 dest_addr, size_t transfer_length, dma_type_t dma_type);
+s32 dma_init(dma_config_s* config);
 
 #endif // __ASSEMBLER__
 

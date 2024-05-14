@@ -8,13 +8,12 @@
     extern u8 low_heap[TEST_HEAP_SIZE];
     extern u8 mid_heap[TEST_HEAP_SIZE];
     extern u8 high_heap[TEST_HEAP_SIZE]; 
-    #define ARM_DRAM_LOW_MEM_START  &low_heap
+    #define ARM_DRAM_LOW_MEM_START  &(low_heap[0])
     #define ARM_DRAM_LOW_MEM_END    &(low_heap[TEST_HEAP_SIZE])
-    #define ARM_DRAM_MID_MEM_START  &mid_heap
+    #define ARM_DRAM_MID_MEM_START  &(mid_heap[0])
     #define ARM_DRAM_MID_MEM_END    &(mid_heap[TEST_HEAP_SIZE])
-    #define ARM_DRAM_HIGH_MEM_START &high_heap
+    #define ARM_DRAM_HIGH_MEM_START &(high_heap[0])
     #define ARM_DRAM_HIGH_MEM_END   &(high_heap[TEST_HEAP_SIZE])
-
 #else
     /*
     * Full 35-bit address map

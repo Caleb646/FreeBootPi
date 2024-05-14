@@ -9,7 +9,7 @@
 * boundary
 */
 static anonymous_control_block_s GCC_ALIGN_ADDR(DMA_CONTROL_BLOCK_BYTE_ALIGNMENT)       allocated_channel_cbs[MAX_DMA_CHANNEL_ID + 1];
-static u32                                                                              is_channel_allocated[MAX_DMA_CHANNEL_ID + 1];
+static u32 volatile                                                                     is_channel_allocated[MAX_DMA_CHANNEL_ID + 1];
 static dma_config_s                                                                     dma_config;
 
 static s32 find_open_channel(dma_type_t dma_type)
@@ -60,8 +60,10 @@ static s32 find_open_channel(dma_type_t dma_type)
 *   this both the src and dest addresses must also point to a location in the 1st GB of SRAM. Unless DMA4 is used.
 *   DMA4 can use 40 bit addresses.
 */
-dma_status_t dma_transfer(void* control_block, dma_type_t dma_type)
+dma_status_t dma_transfer(anonymous_control_block_s* control_block, dma_type_t dma_type)
 {
+    // enter_critical(IRQ_DISABLED_FIQ_DISABLED_TARGET);
+
     s32 channel_id = find_open_channel(dma_type);
     if(channel_id == -1)
     {
@@ -71,9 +73,14 @@ dma_status_t dma_transfer(void* control_block, dma_type_t dma_type)
     {
         LOG_ERROR("Previous DMA transfer failed");
     }
+    // enter_critical(IRQ_DISABLED_FIQ_DISABLED_TARGET);
     is_channel_allocated[channel_id] = 1;
+    // leave_critical();
     memcopy(control_block, sizeof(anonymous_control_block_s), &(allocated_channel_cbs[channel_id]) );
     u32 control_block_addr = (u32)(&(allocated_channel_cbs[channel_id]));
+
+    // leave_critical();
+
     if(dma_type == DMA4)
     {
         control_block_addr >>= DMA4_CB_ADDR_SHIFT;
@@ -96,15 +103,83 @@ dma_status_t dma_transfer(void* control_block, dma_type_t dma_type)
     return DMA_OK;
 }
 
-s32 dma_init(void)
+static dma_status_t dma_memcpy_(u64 src_addr, u64 dest_addr, size_t transfer_length, dma_type_t dma_type)
+{
+    u64 src_bus = ARM_TO_VPU_BUS_ADDR(src_addr);
+    u64 dest_bus = ARM_TO_VPU_BUS_ADDR(dest_addr);
+    anonymous_control_block_s block;
+    memset(&block, 0, sizeof(anonymous_control_block_s));
+    if(dma_type == DMA_STANDARD)
+    {
+        control_block_s* dma_block = (control_block_s*)&block;
+        dma_block->source_addr = src_bus;
+        dma_block->dest_addr = dest_bus;
+        dma_block->transfer_length = transfer_length;
+    }
+    else if(dma_type == DMA_LITE)
+    {
+        dma_lite_control_block_s* dma_block = (dma_lite_control_block_s*)&block;
+        dma_block->source_addr = src_bus;
+        dma_block->dest_addr = dest_bus;
+        dma_block->transfer_length = transfer_length;
+    }
+    else if(dma_type == DMA4)
+    {
+        dma4_control_block_s* dma_block = (dma4_control_block_s*)&block;
+        dma_block->source_addr = src_bus;
+        dma_block->dest_addr = dest_bus;
+        dma_block->transfer_length = transfer_length;
+    }
+    else
+    {
+        LOG_ERROR("Incorrect dma_type: [%u]", dma_type);
+        return DMA_ERROR_ON_TRANSFER;
+    }
+    return dma_transfer(&block, dma_type);
+}
+
+dma_status_t dma_memcpy(u64 src_addr, u64 dest_addr, size_t transfer_length, dma_type_t dma_type)
+{
+    while(transfer_length > DMA_MAX_TRANSFER_LENGTH)
+    {
+        dma_status_t status = dma_memcpy_(src_addr, dest_addr, DMA_MAX_TRANSFER_LENGTH, dma_type);
+        if(status == DMA_OK)
+        {
+            src_addr += DMA_MAX_TRANSFER_LENGTH;
+            dest_addr += DMA_MAX_TRANSFER_LENGTH;
+            transfer_length -= DMA_MAX_TRANSFER_LENGTH;
+        }
+        else if(status != DMA_NO_OPEN_CHANNELS)
+        {
+            return status;
+        }
+    }
+    dma_status_t status = dma_memcpy_(src_addr, dest_addr, DMA_MAX_TRANSFER_LENGTH, dma_type);
+    while(status != DMA_OK)
+    {
+        if(status != DMA_NO_OPEN_CHANNELS)
+        {
+            return status;
+        }
+    }
+    return DMA_OK;
+}
+
+s32 dma_init(dma_config_s* config)
 {
     memset((void *)allocated_channel_cbs, 0, sizeof(allocated_channel_cbs));
     memset((void *)is_channel_allocated, 0, sizeof(is_channel_allocated));
 
-    dma_config.dma_start_id = 0;
-    dma_config.dma_lite_start_id = 7;
-    dma_config.dma4_start_id = 11;
-    dma_config.dma4_end_id = MAX_DMA_CHANNEL_ID;
-
+    if(config == NULLPTR)
+    {
+        dma_config.dma_start_id = DMA_CHANNEL_START;
+        dma_config.dma_lite_start_id = DMA_LITE_CHANNEL_START;
+        dma_config.dma4_start_id = DMA_4_CHANNEL_START;
+        dma_config.dma4_end_id = DMA_4_CHANNEL_END;
+    }
+    else
+    {
+        dma_config = *config;
+    }
     return 1;
 }

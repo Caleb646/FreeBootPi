@@ -2,10 +2,10 @@
 #include "printf.h"
 #include "peripherals/vidcore.h"
  
-u32* frame_buffer;
-u32 phy_width, phy_height, virt_width, virt_height, bytes_per_line, pix_order /* RGBA or BGRA ....*/; 
+static u32* frame_buffer;
+static u32 phy_width, phy_height, virt_width, virt_height, bytes_per_line, pix_order /* RGBA or BGRA ....*/; 
 
-void screen_init()
+void screen_init(void)
 {
     vid_core_buffer[0] = sizeof(vid_core_buffer) - sizeof(u32); // Length of message in bytes
     vid_core_buffer[1] = VID_CORE_MBOX_REQUEST_CODE;
