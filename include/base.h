@@ -52,8 +52,8 @@ extern u32 __kernel_plus_stacks_end;
 #define ARM_TO_VPU_BUS_ADDR(addr)				(VPU_BUS_TO_ARM_ADDR(addr) | 0xC0000000)
 
 
-void put32(u64 addr, u32 val);
-u32 get32(u64 addr);
+void write32(u64 addr, u32 val);
+u32 read32(u64 addr);
 u64 get_arm_core_id(void);
 u64 get_arm_exception_lvl(void);
 void memset(void* src, u8 value, size_t nbytes);

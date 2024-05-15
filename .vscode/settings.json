@@ -11,5 +11,8 @@
         "charconv": "c",
         "source_location": "c",
         "stacktrace": "c"
-    }
+    },
+    "editor.formatOnSave": true,
+    "editor.defaultFormatter": "xaver.clang-format",
+    "clang-format.style": "file"
 }
