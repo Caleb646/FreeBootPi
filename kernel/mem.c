@@ -8,6 +8,7 @@ extern u8 high_heap[TEST_HEAP_SIZE];
 #include "sync.h"
 #endif
 
+
 static heap_s heaps[MEM_NUM_HEAP_SECTIONS];
 
 static s32 find_heap (void* ptr) {

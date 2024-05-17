@@ -85,7 +85,7 @@ static dma_status_t dma_delete_channel (u32 channel_id) {
 /*
  * \brief
  * \param control_block The src and dest addresses MUST be VPU Bus Addresses not
- * SRAM Physical addresses. Because of this both the src and dest addresses must
+ * SRAM Physical addresses. Both the src and dest addresses must
  * also point to a location in the 1st GB of SRAM. Unless DMA4 is used. DMA4 can
  * use 40 bit addresses.
  */
@@ -125,6 +125,8 @@ dma_status_t dma_transfer (anonymous_control_block_s cbs[DMA_MAX_CBS_PER_CHANNEL
     u32 control_block_addr = (u32)(&(allocated_channel_cbs[channel_id]));
 
     if (dma_type == DMA4) {
+        // TODO: dma4 has two seperate registers for the low and high part of
+        // of the address.
         control_block_addr >>= DMA4_CB_ADDR_SHIFT;
     } else {
         // NOTE: only have 32 - 5 bits to address each control block.
@@ -136,7 +138,7 @@ dma_status_t dma_transfer (anonymous_control_block_s cbs[DMA_MAX_CBS_PER_CHANNEL
     }
     write32 (DMA_CONTROL_BLOCK_ADDR (channel_id), control_block_addr);
     // Ensure control block address is written and visible to DMA before DMA is activated
-    DATA_MEMORY_BARRIER_OUTER_STORES ();
+    DATA_MEMORY_BARRIER_FS_STORES ();
     // Clear error, interrupt flags and enable channel
     write32 (DMA_CS (channel_id), read32 (DMA_CS (channel_id)) | DMA_CS_INIT_TRANSFER_VAL);
 
