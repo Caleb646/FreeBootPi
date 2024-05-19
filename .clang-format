@@ -75,7 +75,7 @@ AccessModifierOffset: 0
 #   BAS_AlwaysBreak (in configuration: AlwaysBreak) Always break after an open bracket, if the parameters don’t fit on a single line, e.g.:
 #   someLongFunction(
 #       argument1, argument2);
-AlignAfterOpenBracket: Align
+AlignAfterOpenBracket: AlwaysBreak
 
 # AlignConsecutiveAssignments (bool)
 # If true, aligns consecutive assignments.
@@ -84,6 +84,8 @@ AlignAfterOpenBracket: Align
 # int b    = 23;
 # int ccc  = 23;
 AlignConsecutiveAssignments: true
+
+AlignConsecutiveBitFields: false
 
 # AlignEscapedNewlinesLeft (bool)
 # If true, aligns escaped newlines as far left as possible. Otherwise puts them into the right-most column.
@@ -94,7 +96,7 @@ AlignEscapedNewlinesLeft: true
 # Specifically, this aligns operands of a single expression that needs to be split over multiple lines, e.g.:
 # int aaa = bbbbbbbbbbbbbbb +
 #           ccccccccccccccc;
-AlignOperands: false
+AlignOperands: AlignAfterOperator
 
 
 
@@ -252,6 +254,8 @@ DerivePointerBinding: false
 # ForEachMacros: ['RANGES_FOR', 'FOREACH']
 # For example: BOOST_FOREACH.
 #ForEachMacros:
+
+AlignConsecutiveMacros: AcrossEmptyLinesAndComments
 
 # IncludeCategories (std::vector<IncludeCategory>)
 # Regular expressions denoting the different #include categories used for ordering #includes.

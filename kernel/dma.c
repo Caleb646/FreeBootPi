@@ -76,8 +76,7 @@ static dma_status_t dma_delete_channel (u32 channel_id) {
      */
     DATA_MEMORY_BARRIER_OUTER_STORES ();
     for (u32 i = 0; i < DMA_MAX_CBS_PER_CHANNEL; ++i) {
-        memset (&(allocated_channel_cbs[channel_id + i]), 0,
-                sizeof (anonymous_control_block_s));
+        memset (&(allocated_channel_cbs[channel_id + i]), 0, sizeof (anonymous_control_block_s));
     }
     return DMA_OK;
 }
@@ -89,10 +88,8 @@ static dma_status_t dma_delete_channel (u32 channel_id) {
  * also point to a location in the 1st GB of SRAM. Unless DMA4 is used. DMA4 can
  * use 40 bit addresses.
  */
-dma_status_t dma_transfer (anonymous_control_block_s cbs[DMA_MAX_CBS_PER_CHANNEL],
-                           u32 ncbs,
-                           u32 channel_id,
-                           dma_type_t dma_type) {
+dma_status_t
+dma_transfer (anonymous_control_block_s cbs[DMA_MAX_CBS_PER_CHANNEL], u32 ncbs, u32 channel_id, dma_type_t dma_type) {
     if (DMA_CHANNEL_HAS_ERROR (channel_id)) {
         LOG_ERROR ("Previous DMA transfer failed");
     }
@@ -118,8 +115,7 @@ dma_status_t dma_transfer (anonymous_control_block_s cbs[DMA_MAX_CBS_PER_CHANNEL
             }
         }
 
-        memcopy (&(cbs[i]), sizeof (anonymous_control_block_s),
-                 &(allocated_channel_cbs[channel_id + i]));
+        memcopy (&(cbs[i]), sizeof (anonymous_control_block_s), &(allocated_channel_cbs[channel_id + i]));
     }
 
     u32 control_block_addr = (u32)(&(allocated_channel_cbs[channel_id]));
@@ -145,12 +141,13 @@ dma_status_t dma_transfer (anonymous_control_block_s cbs[DMA_MAX_CBS_PER_CHANNEL
     return DMA_OK;
 }
 
-static dma_status_t dma_setup_memcpy_ (u64 src_addr,
-                                       u64 dest_addr,
-                                       size_t transfer_length,
-                                       anonymous_control_block_s* block,
-                                       u32 channel_id,
-                                       dma_type_t dma_type) {
+static dma_status_t dma_setup_memcpy_ (
+u64 src_addr,
+u64 dest_addr,
+size_t transfer_length,
+anonymous_control_block_s* block,
+u32 channel_id,
+dma_type_t dma_type) {
     u64 src_bus  = ARM_TO_VPU_BUS_ADDR (src_addr);
     u64 dest_bus = ARM_TO_VPU_BUS_ADDR (dest_addr);
     memset (block, 0, sizeof (anonymous_control_block_s));
@@ -191,8 +188,8 @@ dma_status_t dma_memcpy (u64 src_addr, u64 dest_addr, size_t transfer_length, dm
     s32 max_failed_attempts = DMA_MAX_CBS_PER_CHANNEL * 2;
     anonymous_control_block_s blocks[DMA_MAX_CBS_PER_CHANNEL];
     while (n_overflow_cbs > 0 && max_failed_attempts > 0) {
-        status = dma_setup_memcpy_ (src_addr, dest_addr, DMA_MAX_TRANSFER_LENGTH,
-                                    &(blocks[idx++]), channel_id, dma_type);
+        status = dma_setup_memcpy_ (
+        src_addr, dest_addr, DMA_MAX_TRANSFER_LENGTH, &(blocks[idx++]), channel_id, dma_type);
         if (status == DMA_OK) {
             src_addr += DMA_MAX_TRANSFER_LENGTH;
             dest_addr += DMA_MAX_TRANSFER_LENGTH;
@@ -202,8 +199,8 @@ dma_status_t dma_memcpy (u64 src_addr, u64 dest_addr, size_t transfer_length, dm
             --max_failed_attempts;
         }
     }
-    status = dma_setup_memcpy_ (src_addr, dest_addr, transfer_length,
-                                &(blocks[channel_id]), channel_id, dma_type);
+    status =
+    dma_setup_memcpy_ (src_addr, dest_addr, transfer_length, &(blocks[channel_id]), channel_id, dma_type);
     if (status == DMA_OK) {
         status = dma_transfer (&(blocks[channel_id]), n_overflow_cbs + 1, channel_id, dma_type);
     }
@@ -222,9 +219,10 @@ static void dma_irq_default_handler (u32 irq_id) {
         u32 error = read32 (DMA_DEBUG (channel_id));
         switch (error & 0x7) {
         case 0x7:
-            LOG_ERROR ("Read, FIFO, and Read Not Set errors for DMA channel "
-                       "[%u]",
-                       channel_id);
+            LOG_ERROR (
+            "Read, FIFO, and Read Not Set errors for DMA channel "
+            "[%u]",
+            channel_id);
             break;
         case 0x6:
             LOG_ERROR ("Read and FIFO errors for DMA channel [%u]", channel_id);
