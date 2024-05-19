@@ -3,7 +3,7 @@
 
 #include "base.h"
 
-#define DMA_BASE (PBASE + 0x2007000)
+#define DMA_BASE           (PBASE + 0x2007000)
 #define DMA_CHANNEL_OFFSET 0x100
 /*
  * Bit 31 = Reset = Writing 1 will reset DMA. WO and will self clear
@@ -16,15 +16,15 @@
  */
 #define DMA_CS(channel_id) \
     (DMA_BASE + (DMA_CHANNEL_OFFSET * channel_id) + 0x000)
-#define DMA_CS_RESET_BIT (1 << 31)
-#define DMA_CS_ABORT_BIT (1 << 30)
-#define DMA_CS_ERROR_BIT (1 << 8)
-#define DMA_CS_WAITING_BIT (1 << 6)
-#define DMA_CS_PAUSED_BIT (1 << 4)
-#define DMA_CS_INT_BIT (1 << 2)
+#define DMA_CS_RESET_BIT             (1 << 31)
+#define DMA_CS_ABORT_BIT             (1 << 30)
+#define DMA_CS_ERROR_BIT             (1 << 8)
+#define DMA_CS_WAITING_BIT           (1 << 6)
+#define DMA_CS_PAUSED_BIT            (1 << 4)
+#define DMA_CS_INT_BIT               (1 << 2)
 #define DMA_CS_TRANSFER_COMPLETE_BIT (1 << 1)
-#define DMA_CS_DMA_ACTIVE_BIT (1 << 0)
-#define DMA_CS_ABORT_VAL (DMA_CS_ABORT_BIT | DMA_CS_INT_BIT | DMA_CS_ERROR_BIT)
+#define DMA_CS_DMA_ACTIVE_BIT        (1 << 0)
+#define DMA_CS_ABORT_VAL             (DMA_CS_ABORT_BIT | DMA_CS_INT_BIT | DMA_CS_ERROR_BIT)
 #define DMA_CS_INIT_TRANSFER_VAL \
     (DMA_CS_ERROR_BIT | DMA_CS_DMA_ACTIVE_BIT | DMA_CS_INT_BIT)
 
@@ -113,7 +113,7 @@
 /*
  * Interrupt status of each DMA channel. Read ONLY
  */
-#define DMA_GLOBAL_INT_STATUS (DMA_BASE + 0xFE0)
+#define DMA_GLOBAL_INT_STATUS            (DMA_BASE + 0xFE0)
 /*
  * Global enable bits for each DMA channel.
  * Bits 31:28 = PAGELITE = Set the 1G SDRAM ram page that the DMA Lite engines
@@ -138,7 +138,7 @@
  *   If Bit 14 = 1 then DMA channel 14 = enabled
  *   ALL channels are enabled by default.
  */
-#define DMA_GLOBAL_ENABLE (DMA_BASE + 0xFF0)
+#define DMA_GLOBAL_ENABLE                (DMA_BASE + 0xFF0)
 
 /*
  * DMA Channel 15 is exclusively used by the VPU
@@ -147,27 +147,27 @@
  * DMA channels 7 through 10 are DMA Lite channels
  * DMA channels 11 through 14 are DMA 4 channels
  */
-#define MAX_DMA_CHANNEL_ID 14
-#define DMA_CHANNEL_START 0
-#define DMA_CHANNEL_END 6
-#define DMA_LITE_CHANNEL_START 7
-#define DMA_LITE_CHANNEL_END 10
-#define DMA_4_CHANNEL_START 11
-#define DMA_4_CHANNEL_END 14
+#define MAX_DMA_CHANNEL_ID               14
+#define DMA_CHANNEL_START                0
+#define DMA_CHANNEL_END                  6
+#define DMA_LITE_CHANNEL_START           7
+#define DMA_LITE_CHANNEL_END             10
+#define DMA_4_CHANNEL_START              11
+#define DMA_4_CHANNEL_END                14
 /*
  * A control block's address must be aligned on a 32 byte boundary
  */
 #define DMA_CONTROL_BLOCK_BYTE_ALIGNMENT 32
-#define DMA4_CB_ADDR_SHIFT 5
+#define DMA4_CB_ADDR_SHIFT               5
 /*
  * 2 most significant bits are reserved
  */
-#define DMA_MAX_TRANSFER_LENGTH 0x3FFFFFFFUL
+#define DMA_MAX_TRANSFER_LENGTH          0x3FFFFFFFUL
 /*
  * Determines how many control blocks can be linked together for a single
  * transfer
  */
-#define DMA_MAX_CBS_PER_CHANNEL 3
+#define DMA_MAX_CBS_PER_CHANNEL          3
 
 #ifndef __ASSEMBLER__
 
@@ -243,10 +243,8 @@ typedef enum dma_status_t {
 
 } dma_status_t;
 
-dma_status_t dma_transfer (anonymous_control_block_s cbs[DMA_MAX_CBS_PER_CHANNEL],
-                           u32 ncbs,
-                           u32 channel_id,
-                           dma_type_t dma_type);
+dma_status_t
+dma_transfer (anonymous_control_block_s cbs[DMA_MAX_CBS_PER_CHANNEL], u32 ncbs, u32 channel_id, dma_type_t dma_type);
 dma_status_t dma_memcpy (u64 src_addr, u64 dest_addr, size_t transfer_length, dma_type_t dma_type);
 s32 dma_init (dma_config_s* config);
 

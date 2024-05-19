@@ -43,7 +43,7 @@ extern u8 high_heap[TEST_HEAP_SIZE];
  * High mem requires a 35 bit addresses
  */
 #define ARM_DRAM_HIGH_MEM_START 0x100000000
-#define ARM_DRAM_HIGH_MEM_END   0x400000000 /* 1.6 GBs */
+#define ARM_DRAM_HIGH_MEM_END   0x400000000
 
 #endif
 

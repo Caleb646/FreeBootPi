@@ -2,7 +2,7 @@
 #define _BASE_H
 
 // Raspberry Pi 4b
-#define PBASE 0x0FC000000 // When in "Low Peripheral Mode"
+#define PBASE         0x0FC000000 // When in "Low Peripheral Mode"
 #define ARM_NUM_CORES 4
 
 #ifndef __ASSEMBLER__
@@ -24,18 +24,18 @@ typedef void (*irq_handler_t) (u32 irq_id);
 extern u32 __kernel_plus_stacks_start;
 extern u32 __kernel_plus_stacks_end;
 
-#define KERNEL_LOAD_ADDR 0x80000
-#define KERNEL_START &__kernel_plus_stacks_start
-#define KERNEL_END &__kernel_plus_stacks_end
-#define KERNEL_SIZE (KERNEL_END - KERNEL_START)
+#define KERNEL_LOAD_ADDR    0x80000
+#define KERNEL_START        &__kernel_plus_stacks_start
+#define KERNEL_END          &__kernel_plus_stacks_end
+#define KERNEL_SIZE         (KERNEL_END - KERNEL_START)
 
-#define NULLPTR ((void*)0)
+#define NULLPTR             ((void*)0)
 #define REG_PTR32(reg_addr) *((u32 volatile*)reg_addr)
 #define REG_PTR64(reg_addr) *((u64 volatile*)reg_addr)
 
-#define FALSE 0
+#define FALSE               0
 
-#define GCC_NODISCARD __attribute__ ((__warn_unused_result__))
+#define GCC_NODISCARD       __attribute__ ((__warn_unused_result__))
 #define GCC_ALIGN_ADDR(byte_alignment) \
     __attribute__ ((aligned (byte_alignment)))
 
