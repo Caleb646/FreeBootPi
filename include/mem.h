@@ -36,7 +36,7 @@ extern u8 high_heap[TEST_HEAP_SIZE];
  * Below this is where armstub put spin table for the secondary cores.
  */
 #define ARM_DRAM_LOW_MEM_START  0x01000
-#define ARM_DRAM_LOW_MEM_END    KERNEL_LOAD_ADDR
+#define ARM_DRAM_LOW_MEM_END    KERNEL_START_ADDR
 #define ARM_DRAM_MID_MEM_START  0x040000000 /* Top of SDRAM for the Video Core */
 #define ARM_DRAM_MID_MEM_END    0x0FC000000 /* Start of the Main Peripherals */
 /*

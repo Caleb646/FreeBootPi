@@ -131,7 +131,7 @@ void delete (void* ptr) {
         return;
     }
     /*
-     * TODO: Should join free_list entries together
+     * TODO: Should join near by free_list entries together
      */
     node_s* cur = heap->free_list_head;
     while (cur != NULLPTR) {
@@ -345,18 +345,24 @@ typedef struct page_desc_lvl3 {
     dbm             : (1 + 51 - 51),    // Dirty Bit Modifier
     contiguous	    : (1 + 52 - 52),	// A hint bit indicating that the translation table entry is one of a contiguous set or entries -- set to 0
     /*
-    * When the PXN bit is 1, a Permission fault is generated if the processor is executing at 
-    * PL1 and attempts to execute an instruction fetched from the corresponding memory region. 
+    * The Privileged execute-never field. When the PXN bit is 1, a Permission fault is 
+    * generated if the processor is executing at 
+    * EL1 and attempts to execute an instruction fetched from the corresponding memory region. 
     * As with the XN bit, when using the Short-descriptor translation table format, the fault is 
     * generated only if the access is to memory in the Client domain.
     * 
     * If 0, execution of code is allowed.
     */
-    pxn		        : (1 + 53 - 53),	// The Privileged execute-never field -- set to 0, 1 for device memory
+#define PXN_EL1_EXECUTION_ALLOWED   0x0 // Should be allowed for kernel memory
+#define PXN_EL1_NO_EXECUTION        0x1 // Should be disallowed for device memory
+    pxn		        : (1 + 53 - 53),
     /*
+    * The Execute-never or Unprivileged execute-never field. 
     * If 0, execution of code is permitted for EL0.
     */
-    uxn		        : (1 + 54 - 54),	// The Execute-never or Unprivileged execute-never field -- set to 1
+#define UXN_EL0_EXECUTION_ALLOWED   0x0
+#define UXN_EL0_NO_EXECUTION        0x1
+    uxn		        : (1 + 54 - 54),
     ignored0		: 9;	            // set to 0
 
 } page_desc_lvl3;
@@ -380,8 +386,16 @@ void* create_translation_tbl_lvl3_ (uintptr_t addr) {
         desc->phys_addr      = LEVEL3_PHYS_ADDR (addr);
         desc->dbm            = 0;
         desc->contiguous     = 0;
-        desc->pxn            = 0;
-        desc->uxn            = 1;
+        desc->pxn            = PXN_EL1_EXECUTION_ALLOWED;
+        desc->uxn            = UXN_EL0_NO_EXECUTION;
+
+        /*
+         * The only memory section that will be executable ranges from 0x0
+         * to kernel_start + kernel_text_size
+         */
+        if (addr > KERNEL_TEXT_END_ADDR) {
+            desc->pxn = PXN_EL1_NO_EXECUTION;
+        }
 
 
         addr += MMU_LEVEL3_PAGE_SIZE;

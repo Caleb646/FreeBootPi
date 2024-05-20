@@ -21,21 +21,26 @@ typedef unsigned long uintptr_t;
 typedef void (*irq_handler_t) (u32 irq_id);
 
 /* https://sourceware.org/binutils/docs/ld/Source-Code-Reference.html */
-extern u32 __kernel_plus_stacks_start;
+extern u32 __kernel_start;
+extern u32 __kernel_text_end;
+extern u32 __kernel_end;
 extern u32 __kernel_plus_stacks_end;
 
-#define KERNEL_LOAD_ADDR    0x80000
-#define KERNEL_START        &__kernel_plus_stacks_start
-#define KERNEL_END          &__kernel_plus_stacks_end
-#define KERNEL_SIZE         (KERNEL_END - KERNEL_START)
+// #define KERNEL_LOAD_ADDR    0x80000
 
-#define NULLPTR             ((void*)0)
-#define REG_PTR32(reg_addr) *((u32 volatile*)reg_addr)
-#define REG_PTR64(reg_addr) *((u64 volatile*)reg_addr)
+#define KERNEL_START_ADDR           &__kernel_start
+#define KERNEL_TEXT_END_ADDR        &__kernel_text_end
+#define KERNEL_ONLY_END_ADDR        &__kernel_end
+#define KERNEL_PLUS_STACKS_END_ADDR &__kernel_plus_stacks_end
+// #define KERNEL_MEM_SIZE             (KERNEL_END - KERNEL_START)
 
-#define FALSE               0
+#define NULLPTR                     ((void*)0)
+#define REG_PTR32(reg_addr)         *((u32 volatile*)reg_addr)
+#define REG_PTR64(reg_addr)         *((u64 volatile*)reg_addr)
 
-#define GCC_NODISCARD       __attribute__ ((__warn_unused_result__))
+#define FALSE                       0
+
+#define GCC_NODISCARD               __attribute__ ((__warn_unused_result__))
 #define GCC_ALIGN_ADDR(byte_alignment) \
     __attribute__ ((aligned (byte_alignment)))
 
