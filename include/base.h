@@ -3,6 +3,7 @@
 
 // Raspberry Pi 4b
 #define PBASE         0x0FC000000 // When in "Low Peripheral Mode"
+#define PERIPH_END    0x100000000UL
 #define ARM_NUM_CORES 4
 
 #ifndef __ASSEMBLER__

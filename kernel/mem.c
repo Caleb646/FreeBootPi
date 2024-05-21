@@ -206,62 +206,71 @@ void delete (void* ptr) {
 #define MAIR_NORMAL_OUTERW_BACK_NON_TRANSIENT (0b1111 << 4)
 
 #define MAIR_NORMAL_INNERW_BACK_NON_TRANSIENT (0b1111 << 0)
+#define MAIR_NORMAL_INNER_NO_CACHE            (0b0100 << 0)
 
-#define MAIR_NORMAL_ATTR_IDX                  0
-#define MAIR_DEVICE_ATTR_IDX                  1
-#define MAIR_COHERENT_ATTR_IDX                2
+#define MAIR_NORMAL_IDX                       0
+#define MAIR_NORMAL_NO_CACHE_IDX              1
+#define MAIR_DEVICE_IDX                       2
+#define MAIR_DEVICE_COHERENT_IDX              3
+
+#define MAIR_NORMAL \
+    (MAIR_NORMAL_OUTERW_BACK_NON_TRANSIENT | MAIR_NORMAL_INNERW_BACK_NON_TRANSIENT)
+#define MAIR_NORMAL_NO_CACHE \
+    (MAIR_NORMAL_OUTER_NO_CACHE | MAIR_NORMAL_INNER_NO_CACHE)
+#define MAIR_DEVICE_COHERENT               MAIR_DEVICE_NGNRNE
+#define MAIR_DEVICE                        MAIR_DEVICE_NGNRE
 
 /* Intermediate Physical Address Size */
-#define TCR_IPS_32                            (0b000UL << 32) // 32 bits, 4GB.
-#define TCR_IPS_36                            (0b001UL << 32) // 36 bits, 64GB.
-#define TCR_IPS_40                            (0b010UL << 32) // 40 bits, 1TB.
-#define TCR_IPS_42                            (0b011UL << 32)
-#define TCR_IPS_44                            (0b100UL << 32)
-#define TCR_IPS_48                            (0b101UL << 32)
-#define TCR_IPS_52                            (0b110UL << 32)
-#define TCR_IPS_MASK                          (0b111UL << 32)
+#define TCR_IPS_32                         (0b000UL << 32) // 32 bits, 4GB.
+#define TCR_IPS_36                         (0b001UL << 32) // 36 bits, 64GB.
+#define TCR_IPS_40                         (0b010UL << 32) // 40 bits, 1TB.
+#define TCR_IPS_42                         (0b011UL << 32)
+#define TCR_IPS_44                         (0b100UL << 32)
+#define TCR_IPS_48                         (0b101UL << 32)
+#define TCR_IPS_52                         (0b110UL << 32)
+#define TCR_IPS_MASK                       (0b111UL << 32)
 
-#define TCR_TGN_64KB(n)                       (0b11 << (n * 30) + ((1 - n) * 14))
-#define TCR_TGN_16KB(n)                       (0b01 << (n * 30) + ((1 - n) * 14))
-#define TCR_TGN_4KB(n)                        (0b10 << (n * 30) + ((1 - n) * 14))
-#define TCR_TGN_MASK(n)                       (0b11 << (n * 30) + ((1 - n) * 14))
+#define TCR_TGN_64KB(n)                    (0b11 << (n * 30) + ((1 - n) * 14))
+#define TCR_TGN_16KB(n)                    (0b01 << (n * 30) + ((1 - n) * 14))
+#define TCR_TGN_4KB(n)                     (0b10 << (n * 30) + ((1 - n) * 14))
+#define TCR_TGN_MASK(n)                    (0b11 << (n * 30) + ((1 - n) * 14))
 
-#define TCR_SHN_INNER(n)                      (0b11 << (n * 28) + ((1 - n) * 12))
-#define TCR_SHN_NOSHARE(n)                    (0b00 << (n * 28) + ((1 - n) * 12))
-#define TCR_SHN_OUTER(n)                      (0b10 << (n * 28) + ((1 - n) * 12))
-#define TCR_SHN_MASK(n)                       (0b11 << (n * 28) + ((1 - n) * 12))
+#define TCR_SHN_INNER(n)                   (0b11 << (n * 28) + ((1 - n) * 12))
+#define TCR_SHN_NOSHARE(n)                 (0b00 << (n * 28) + ((1 - n) * 12))
+#define TCR_SHN_OUTER(n)                   (0b10 << (n * 28) + ((1 - n) * 12))
+#define TCR_SHN_MASK(n)                    (0b11 << (n * 28) + ((1 - n) * 12))
 
-#define TCR_ORGNN_NORMAL_OUTER_NOCACHE(n)     (0b00 << (n * 26) + ((1 - n) * 10))
-#define TCR_ORGNN_NORMAL_OUTER_WB_CACHE(n)    (0b01 << (n * 26) + ((1 - n) * 10))
-#define TCR_ORGNN_NORMAL_OUTER_WT_CACHE(n)    (0b10 << (n * 26) + ((1 - n) * 10))
-#define TCR_ORGNN_NORMAL_OUTER_WB_NOWA(n)     (0b11 << (n * 26) + ((1 - n) * 10))
-#define TCR_ORGNN_MASK(n)                     (0b11 << (n * 26) + ((1 - n) * 10))
+#define TCR_ORGNN_NORMAL_OUTER_NOCACHE(n)  (0b00 << (n * 26) + ((1 - n) * 10))
+#define TCR_ORGNN_NORMAL_OUTER_WB_CACHE(n) (0b01 << (n * 26) + ((1 - n) * 10))
+#define TCR_ORGNN_NORMAL_OUTER_WT_CACHE(n) (0b10 << (n * 26) + ((1 - n) * 10))
+#define TCR_ORGNN_NORMAL_OUTER_WB_NOWA(n)  (0b11 << (n * 26) + ((1 - n) * 10))
+#define TCR_ORGNN_MASK(n)                  (0b11 << (n * 26) + ((1 - n) * 10))
 
-#define TCR_IRGNN_NORMAL_INNER_NOCACHE(n)     (0b00 << (n * 24) + ((1 - n) * 8))
-#define TCR_IRGNN_NORMAL_INNER_WB_CACHE(n)    (0b01 << (n * 24) + ((1 - n) * 8))
-#define TCR_IRGNN_NORMAL_INNER_WT_CACHE(n)    (0b10 << (n * 24) + ((1 - n) * 8))
-#define TCR_IRGNN_NORMAL_INNER_WB_NOWA(n)     (0b11 << (n * 24) + ((1 - n) * 8))
-#define TCR_IRGNN_MASK(n)                     (0b11 << (n * 24) + ((1 - n) * 8))
+#define TCR_IRGNN_NORMAL_INNER_NOCACHE(n)  (0b00 << (n * 24) + ((1 - n) * 8))
+#define TCR_IRGNN_NORMAL_INNER_WB_CACHE(n) (0b01 << (n * 24) + ((1 - n) * 8))
+#define TCR_IRGNN_NORMAL_INNER_WT_CACHE(n) (0b10 << (n * 24) + ((1 - n) * 8))
+#define TCR_IRGNN_NORMAL_INNER_WB_NOWA(n)  (0b11 << (n * 24) + ((1 - n) * 8))
+#define TCR_IRGNN_MASK(n)                  (0b11 << (n * 24) + ((1 - n) * 8))
 /*
  * This bit controls whether a translation table walk is performed on a TLB
  * miss, for an address that is translated using TTBRN_EL1
  */
-#define TCR_EPDN_ALLOW_TBL_WALK(n)            (0b0 << (n * 23) + ((1 - n) * 7))
-#define TCR_EPDN_NO_TBL_WALK(n)               (0b1 << (n * 23) + ((1 - n) * 7))
-#define TCR_EPDN_MASK(n)                      (0b1 << (n * 23) + ((1 - n) * 7))
+#define TCR_EPDN_ALLOW_TBL_WALK(n)         (0b0 << (n * 23) + ((1 - n) * 7))
+#define TCR_EPDN_NO_TBL_WALK(n)            (0b1 << (n * 23) + ((1 - n) * 7))
+#define TCR_EPDN_MASK(n)                   (0b1 << (n * 23) + ((1 - n) * 7))
 /*
  * Selects whether TTBR0_EL1 or TTBR1_EL1 defines the ASID.
  */
-#define TCR_AN_TTBR0(n)                       (0b0 << (n * 22) + ((1 - n) * 6))
-#define TCR_AN_TTBR1(n)                       (0b1 << (n * 22) + ((1 - n) * 6))
-#define TCR_AN_MASK(n)                        (0b1 << (n * 22) + ((1 - n) * 6))
+#define TCR_AN_TTBR0(n)                    (0b0 << (n * 22) + ((1 - n) * 6))
+#define TCR_AN_TTBR1(n)                    (0b1 << (n * 22) + ((1 - n) * 6))
+#define TCR_AN_MASK(n)                     (0b1 << (n * 22) + ((1 - n) * 6))
 /*
  * The size offset of the memory region addressed by TTBRN_EL1. The region size
  * is 2^(64 - TNSZ) bytes. T1SZ = [21:16] and T0SZ = [5:0]
  */
-#define TCR_TNSZ_4GB(n)                       (32 << (n * 16) + ((1 - n) * 0)) // x = 64 - log2(4GB)
-#define TCR_TNSZ_64GB(n)                      (28 << (n * 16) + ((1 - n) * 0)) // x = 64 - log2(64GB)
-#define TCR_TNSZ_MASK(n)                      (0x3F << (n * 16) + ((1 - n) * 0))
+#define TCR_TNSZ_4GB(n)                    (32 << (n * 16) + ((1 - n) * 0)) // x = 64 - log2(4GB)
+#define TCR_TNSZ_64GB(n)                   (28 << (n * 16) + ((1 - n) * 0)) // x = 64 - log2(64GB)
+#define TCR_TNSZ_MASK(n)                   (0x3F << (n * 16) + ((1 - n) * 0))
 
 #define TCR_MASK(n)                                                           \
     (                                                                         \
@@ -344,22 +353,22 @@ typedef struct page_desc_lvl3 {
     reserved1	    : (1 + 50 - 48),	// set to 0
     dbm             : (1 + 51 - 51),    // Dirty Bit Modifier
     contiguous	    : (1 + 52 - 52),	// A hint bit indicating that the translation table entry is one of a contiguous set or entries -- set to 0
-    /*
-    * The Privileged execute-never field. When the PXN bit is 1, a Permission fault is 
-    * generated if the processor is executing at 
-    * EL1 and attempts to execute an instruction fetched from the corresponding memory region. 
-    * As with the XN bit, when using the Short-descriptor translation table format, the fault is 
-    * generated only if the access is to memory in the Client domain.
-    * 
-    * If 0, execution of code is allowed.
-    */
+/*
+* The Privileged execute-never field. When the PXN bit is 1, a Permission fault is 
+* generated if the processor is executing at 
+* EL1 and attempts to execute an instruction fetched from the corresponding memory region. 
+* As with the XN bit, when using the Short-descriptor translation table format, the fault is 
+* generated only if the access is to memory in the Client domain.
+* 
+* If 0, execution of code is allowed.
+*/
 #define PXN_EL1_EXECUTION_ALLOWED   0x0 // Should be allowed for kernel memory
 #define PXN_EL1_NO_EXECUTION        0x1 // Should be disallowed for device memory
     pxn		        : (1 + 53 - 53),
-    /*
-    * The Execute-never or Unprivileged execute-never field. 
-    * If 0, execution of code is permitted for EL0.
-    */
+/*
+* The Execute-never or Unprivileged execute-never field. 
+* If 0, execution of code is permitted for EL0.
+*/
 #define UXN_EL0_EXECUTION_ALLOWED   0x0
 #define UXN_EL0_NO_EXECUTION        0x1
     uxn		        : (1 + 54 - 54),
@@ -376,7 +385,7 @@ void* create_translation_tbl_lvl3_ (uintptr_t addr) {
     for (uintptr_t entry_idx = 0; entry_idx < MMU_LEVEL3_ENTRIES; ++entry_idx) {
         page_desc_lvl3* desc = &(tbl[entry_idx]);
         desc->entry_type     = 3;
-        desc->attr_idx       = MAIR_NORMAL_ATTR_IDX;
+        desc->attr_idx       = MAIR_NORMAL_IDX;
         desc->ns             = 0;
         desc->ap             = AP_ALL_READ_WRITE;
         desc->sh             = SH_NORMAL_MEM_INNER_SHARE;
@@ -395,6 +404,14 @@ void* create_translation_tbl_lvl3_ (uintptr_t addr) {
          */
         if (addr > KERNEL_TEXT_END_ADDR) {
             desc->pxn = PXN_EL1_NO_EXECUTION;
+
+            if (addr >= VC_DRAM_MEM_START && addr <= VC_DRAM_MEM_END) {
+                desc->attr_idx = MAIR_NORMAL_NO_CACHE;
+                desc->sh       = SH_NORMAL_MEM_OUTER_SHARE;
+            } else if (addr >= PBASE && addr <= PERIPH_END) {
+                desc->attr_idx = MAIR_DEVICE_COHERENT;
+                desc->sh       = SH_NORMAL_MEM_OUTER_SHARE;
+            }
         }
 
 
