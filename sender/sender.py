@@ -14,7 +14,7 @@ def wait_for_breaks(
         if breaks >= break_count:
             return
         if data:
-            print(f"Received: {str(data.decode())}\n")
+            print(f"{str(data.decode())}")
             for b in data:
                 if b == break_code:
                     breaks += 1
