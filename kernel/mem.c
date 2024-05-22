@@ -272,11 +272,11 @@ void delete (void* ptr) {
  * The size offset of the memory region addressed by TTBRN_EL1. The region size
  * is 2^(64 - TNSZ) bytes. T1SZ = [21:16] and T0SZ = [5:0]
  */
-#define TCR_TNSZ_4GB(n) \
-    (32UL << ((n * 16) + ((1 - n) * 0))) // x = 64 - log2(4GB)
+// x = 64 - log2(4GB)
+#define TCR_TNSZ_4GB(n)                   (32UL << ((n * 16) + ((1 - n) * 0)))
 // x = 64 - log2(64GB)
-#define TCR_TNSZ_64GB(n) (28UL << ((n * 16) + ((1 - n) * 0)))
-#define TCR_TNSZ_MASK(n) (0x3FUL << ((n * 16) + ((1 - n) * 0)))
+#define TCR_TNSZ_64GB(n)                  (28UL << ((n * 16) + ((1 - n) * 0)))
+#define TCR_TNSZ_MASK(n)                  (0x3FUL << ((n * 16) + ((1 - n) * 0)))
 
 #define TCR_MASK(n)                                                           \
     (                                                                         \
@@ -421,7 +421,6 @@ static void* create_translation_tbl_lvl3_ (uintptr_t addr) {
         }
         addr += MMU_LEVEL3_PAGE_SIZE;
     }
-
     return (void*)tbl;
 }
 

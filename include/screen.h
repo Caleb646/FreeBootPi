@@ -2,16 +2,20 @@
 #define _SCREEN_H
 #include "base.h"
 
-#define BLACK 0xFFFFFFFF
-#define WHITE 0x000000FF
+/*
+ * 32 Bit Color - ARGB - upper 8 bits are the alpha channel
+ */
+#define BLACK           0xFF000000
+#define WHITE           0xFFFFFFFF
 
-#define NUM_GLYPHS 128
+#define NUM_GLYPHS      128
 #define BYTES_PER_GLYPH 8
-#define GLYPH_WIDTH 8
-#define GLYPH_HEIGHT 8
+#define GLYPH_WIDTH     8
+#define GLYPH_HEIGHT    8
 
 void screen_init (void);
 void screen_draw_pixel (u32 x, u32 y, u32 pixel_color);
+void screen_draw_rect (u32 x, u32 y, u32 width, u32 height, u32 color);
 void screen_draw_char (u32 x, u32 y, char c);
 void screen_draw_string (u32 x, u32 y, char* str);
 

@@ -40,12 +40,15 @@ void kernel_main (void) {
     mem_init (NULLPTR);
     dma_init (NULLPTR);
     screen_init ();
-    screen_draw_string (512, 512, "Hello World");
+    // screen_draw_string (512, 512, "Hello World");
+    screen_draw_rect (0, 0, 200, 200, WHITE);
     while (1) {
         // u8* ptr = (u8*)malloc(sizeof(size_t));
         // u8* ptr2 = (u8*)malloc(sizeof(size_t));
         // LOG_DEBUG("Address: [%X]  [%X] [%u]", ptr, ptr2, sizeof(node_s));
         // free(ptr);
+        // screen_draw_rect (500, 500, 50, 50, WHITE);
+        LOG_DEBUG ("Tick");
         wait_ms (1000); //
     }
 }

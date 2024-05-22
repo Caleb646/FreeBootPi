@@ -1,78 +1,93 @@
 #include "screen.h"
-#include "peripherals/vidcore.h"
+#include "peripherals/vpu.h"
 #include "printf.h"
 
-static u32* frame_buffer;
-static u32 phy_width, phy_height, virt_width, virt_height, bytes_per_line,
+static u8* volatile frame_buffer = NULLPTR;
+static u32 fb_size, screen_width, screen_height, bytes_per_line,
 pix_order /* RGBA or BGRA ....*/;
 
 void screen_init (void) {
-    vid_core_buffer[0] = sizeof (vid_core_buffer) - sizeof (u32); // Length of message in bytes
-    vid_core_buffer[1] = VID_CORE_MBOX_REQUEST_CODE;
+    u32 cmd_buffer[VPU_CMD_BUFFER_SIZE];
 
-    vid_core_buffer[2] = VID_CORE_MBOX_TAG_SETPHYWH;
-    vid_core_buffer[3] = 8;
-    vid_core_buffer[4] = 0;
-    vid_core_buffer[5] = 1920; // Screen width
-    vid_core_buffer[6] = 1080; // Screen height
+    cmd_buffer[0] = 35 * sizeof (u32); // - sizeof (u32); // Length of message in bytes
+    cmd_buffer[1] = VPU_MBOX_REQUEST_CODE;
 
-    vid_core_buffer[7]  = VID_CORE_MBOX_TAG_SETVIRTWH;
-    vid_core_buffer[8]  = 8;
-    vid_core_buffer[9]  = 8;
-    vid_core_buffer[10] = 1920;
-    vid_core_buffer[11] = 1080;
+    cmd_buffer[2] = VPU_MBOX_TAG_SETPHYWH;
+    cmd_buffer[3] = 8;    // Request size in bytes
+    cmd_buffer[4] = 8;    // Response size in bytes
+    cmd_buffer[5] = 1920; // Screen width
+    cmd_buffer[6] = 1080; // Screen height
 
-    vid_core_buffer[12] = VID_CORE_MBOX_TAG_SETVIRTOFF;
-    vid_core_buffer[13] = 8;
-    vid_core_buffer[14] = 8;
-    vid_core_buffer[15] = 0; // Value(x)
-    vid_core_buffer[16] = 0; // Value(y)
+    cmd_buffer[7]  = VPU_MBOX_TAG_SETVIRTWH;
+    cmd_buffer[8]  = 8;
+    cmd_buffer[9]  = 8;
+    cmd_buffer[10] = 1920;
+    cmd_buffer[11] = 1080;
 
-    vid_core_buffer[17] = VID_CORE_MBOX_TAG_SETDEPTH;
-    vid_core_buffer[18] = 4;
-    vid_core_buffer[19] = 4;
-    vid_core_buffer[20] = 32; // Bits per pixel
+    cmd_buffer[12] = VPU_MBOX_TAG_SETVIRTOFF;
+    cmd_buffer[13] = 8;
+    cmd_buffer[14] = 8;
+    cmd_buffer[15] = 0;
+    cmd_buffer[16] = 0;
 
-    vid_core_buffer[21] = VID_CORE_MBOX_TAG_SETPXLORDR;
-    vid_core_buffer[22] = 4;
-    vid_core_buffer[23] = 4;
-    vid_core_buffer[24] = 1; // RGB
+    cmd_buffer[17] = VPU_MBOX_TAG_SETDEPTH;
+    cmd_buffer[18] = 4;
+    cmd_buffer[19] = 4;
+    cmd_buffer[20] = 32; // 32 bit color
 
-    vid_core_buffer[25] = VID_CORE_MBOX_TAG_GETFB;
-    vid_core_buffer[26] = 8;
-    vid_core_buffer[27] = 8;
-    vid_core_buffer[28] = 4096; // Aligned on 4096 boundary
-    vid_core_buffer[29] = 0;    // Frame buffer size in bytes
+    cmd_buffer[21] = VPU_MBOX_TAG_SETPXLORDR;
+    cmd_buffer[22] = 4;
+    cmd_buffer[23] = 4;
+    cmd_buffer[24] = 1; // RGB
 
-    vid_core_buffer[30] = VID_CORE_MBOX_TAG_GETPITCH;
-    vid_core_buffer[31] = 4;
-    vid_core_buffer[32] = 4;
-    vid_core_buffer[33] = 0; // Bytes per line
+    cmd_buffer[25] = VPU_MBOX_TAG_GETFB;
+    cmd_buffer[26] = 8;
+    cmd_buffer[27] = 8;
+    cmd_buffer[28] = 4096; // Aligned on 4096 boundary
+    cmd_buffer[29] = 0;    // Frame buffer size in bytes
 
-    vid_core_buffer[34] = VID_CORE_MBOX_TAG_LAST;
+    cmd_buffer[30] = VPU_MBOX_TAG_GETPITCH;
+    cmd_buffer[31] = 4;
+    cmd_buffer[32] = 4;
+    cmd_buffer[33] = 0; // Bytes per line
 
-    // Check call is successful and we have a pointer with depth 32
-    s32 status = vid_core_call (vid_core_buffer, VID_CORE_MBOX_CHANNEL_PROP);
-    if (status > 0 && vid_core_buffer[20] == 32 && vid_core_buffer[28] != 0) {
-        // vid_core_buffer[28] &= 0x3FFFFFFF;    // Convert GPU address to ARM address
-        vid_core_buffer[28] =
-        VPU_BUS_TO_ARM_ADDR (vid_core_buffer[28]); // Convert GPU address to ARM address
-        phy_width      = vid_core_buffer[5];  // Physical width
-        phy_height     = vid_core_buffer[6];  // Physical height
-        virt_width     = vid_core_buffer[10]; // Virtual width
-        virt_height    = vid_core_buffer[11]; // Virtual height
-        bytes_per_line = vid_core_buffer[33]; // Number of bytes per line
-        pix_order      = vid_core_buffer[24]; // Pixel order
-        frame_buffer   = (u32*)vid_core_buffer[28];
-        // Buffer size: 1920 x 1080 x 32
+    cmd_buffer[34] = VPU_MBOX_TAG_LAST;
+
+    // Check call is successful and have a pointer with depth 32
+    s32 status = vpu_call (&cmd_buffer, VPU_MBOX_CH_PROP);
+    if (status > 0 && cmd_buffer[20] == 32 && cmd_buffer[28] != 0 && cmd_buffer[29] != 0) {
+        // phy_width      = cmd_buffer[5];  // Physical width
+        // phy_height     = cmd_buffer[6];  // Physical height
+        screen_width   = cmd_buffer[10]; // Virtual width
+        screen_height  = cmd_buffer[11]; // Virtual height
+        bytes_per_line = cmd_buffer[33]; // Number of bytes per line
+        pix_order      = cmd_buffer[24]; // Pixel order
+        frame_buffer   = (u8*)VPU_BUS_TO_ARM_ADDR (cmd_buffer[28]);
+        fb_size        = cmd_buffer[29];
+        LOG_INFO ("Frame Buffer Size [%u]", fb_size); // Buffer size: 1920 x 1080 x 32
+        LOG_INFO ("Virtual Height [%u] Width [%u]", screen_height, screen_width);
+        LOG_INFO ("Pixel Order [%u]", pix_order);
+        LOG_INFO ("Bytes Per Line [%u]", bytes_per_line);
     } else {
-        LOG_ERROR ("Failed to intialize screen");
+        LOG_ERROR ("Failed to initialize screen");
     }
 }
 
 void screen_draw_pixel (u32 x, u32 y, u32 pixel_color) {
+    if (frame_buffer == NULLPTR) {
+        LOG_ERROR ("Failed to draw pixel because FB is invalid");
+        return;
+    }
     u32 offset = (y * bytes_per_line) + (x * sizeof (u32));
     *((u32*)(frame_buffer + offset)) = pixel_color;
+}
+
+void screen_draw_rect (u32 x, u32 y, u32 width, u32 height, u32 color) {
+    for (u32 row = y; row < screen_height; ++row) {
+        for (u32 col = x; col < screen_width; ++col) {
+            screen_draw_pixel (col, row, color);
+        }
+    }
 }
 
 void screen_draw_char (u32 x, u32 y, char c) {
