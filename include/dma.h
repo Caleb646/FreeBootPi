@@ -245,7 +245,8 @@ typedef enum dma_status_t {
 
 dma_status_t
 dma_transfer (anonymous_control_block_s cbs[DMA_MAX_CBS_PER_CHANNEL], u32 ncbs, u32 channel_id, dma_type_t dma_type);
-dma_status_t dma_memcpy (u64 src_addr, u64 dest_addr, size_t transfer_length, dma_type_t dma_type);
+dma_status_t
+dma_memcpy (uintptr_t src_addr, uintptr_t dest_addr, size_t transfer_length, dma_type_t dma_type);
 s32 dma_init (dma_config_s* config);
 
 #endif // __ASSEMBLER__

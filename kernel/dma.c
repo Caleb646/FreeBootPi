@@ -115,6 +115,9 @@ dma_transfer (anonymous_control_block_s cbs[DMA_MAX_CBS_PER_CHANNEL], u32 ncbs, 
             }
         }
 
+        if ((uintptr_t) & (allocated_channel_cbs[channel_id + i]) & 0x1F > 0) {
+            LOG_ERROR ("DMA control block is NOT 32 byte aligned");
+        }
         memcopy (&(cbs[i]), sizeof (anonymous_control_block_s), &(allocated_channel_cbs[channel_id + i]));
     }
 
@@ -133,23 +136,27 @@ dma_transfer (anonymous_control_block_s cbs[DMA_MAX_CBS_PER_CHANNEL], u32 ncbs, 
         control_block_addr = ARM_TO_VPU_BUS_ADDR (control_block_addr);
     }
     write32 (DMA_CONTROL_BLOCK_ADDR (channel_id), control_block_addr);
+    // Enable interrupt for transfer
+    write32 (DMA_TF_INFO (channel_id), read32 (DMA_TF_INFO (channel_id)) | DMA_TF_INFO_INT_ENABLE_BIT);
     // Ensure control block address is written and visible to DMA before DMA is activated
     DATA_MEMORY_BARRIER_FS_STORES ();
     // Clear error, interrupt flags and enable channel
     write32 (DMA_CS (channel_id), read32 (DMA_CS (channel_id)) | DMA_CS_INIT_TRANSFER_VAL);
 
+    LOG_INFO ("Started DMA transfer for channel [%u]", channel_id);
+
     return DMA_OK;
 }
 
 static dma_status_t dma_setup_memcpy_ (
-u64 src_addr,
-u64 dest_addr,
+uintptr_t src_addr,
+uintptr_t dest_addr,
 size_t transfer_length,
 anonymous_control_block_s* block,
 u32 channel_id,
 dma_type_t dma_type) {
-    u64 src_bus  = ARM_TO_VPU_BUS_ADDR (src_addr);
-    u64 dest_bus = ARM_TO_VPU_BUS_ADDR (dest_addr);
+    uintptr_t src_bus  = ARM_TO_VPU_BUS_ADDR (src_addr);
+    uintptr_t dest_bus = ARM_TO_VPU_BUS_ADDR (dest_addr);
     memset (block, 0, sizeof (anonymous_control_block_s));
 
     if (dma_type == DMA_STANDARD) {
@@ -174,7 +181,8 @@ dma_type_t dma_type) {
     return DMA_OK;
 }
 
-dma_status_t dma_memcpy (u64 src_addr, u64 dest_addr, size_t transfer_length, dma_type_t dma_type) {
+dma_status_t
+dma_memcpy (uintptr_t src_addr, uintptr_t dest_addr, size_t transfer_length, dma_type_t dma_type) {
     u32 channel_id;
     dma_status_t status = dma_allocate_channel (dma_type, &channel_id);
     if (status != DMA_OK) {
@@ -183,10 +191,11 @@ dma_status_t dma_memcpy (u64 src_addr, u64 dest_addr, size_t transfer_length, dm
         return DMA_TRANSFER_TOO_LARGE;
     }
 
-    u32 idx                 = channel_id;
+    u32 idx                 = 0;
     s32 n_overflow_cbs      = (transfer_length / DMA_MAX_TRANSFER_LENGTH);
     s32 max_failed_attempts = DMA_MAX_CBS_PER_CHANNEL * 2;
     anonymous_control_block_s blocks[DMA_MAX_CBS_PER_CHANNEL];
+    // LOG_INFO ("Channel Allocated [%u] overflow cbs [%d]", channel_id, n_overflow_cbs);
     while (n_overflow_cbs > 0 && max_failed_attempts > 0) {
         status = dma_setup_memcpy_ (
         src_addr, dest_addr, DMA_MAX_TRANSFER_LENGTH, &(blocks[idx++]), channel_id, dma_type);
@@ -200,12 +209,10 @@ dma_status_t dma_memcpy (u64 src_addr, u64 dest_addr, size_t transfer_length, dm
         }
     }
     status =
-    dma_setup_memcpy_ (src_addr, dest_addr, transfer_length, &(blocks[channel_id]), channel_id, dma_type);
+    dma_setup_memcpy_ (src_addr, dest_addr, transfer_length, &(blocks[idx]), channel_id, dma_type);
     if (status == DMA_OK) {
-        status = dma_transfer (&(blocks[channel_id]), n_overflow_cbs + 1, channel_id, dma_type);
+        status = dma_transfer (blocks, n_overflow_cbs + 1, channel_id, dma_type);
     }
-
-    dma_delete_channel (channel_id);
     return status;
 }
 
@@ -215,6 +222,7 @@ static void dma_irq_default_handler (u32 irq_id) {
         return;
     }
     // u32 status = read32 (DMA_CS (channel_id));
+    LOG_INFO ("Received DMA IRQ for channel [%u]", channel_id);
     if (DMA_CHANNEL_HAS_ERROR (channel_id)) {
         u32 error = read32 (DMA_DEBUG (channel_id));
         switch (error & 0x7) {
@@ -252,15 +260,11 @@ s32 dma_init (dma_config_s* config) {
     memset ((void*)allocated_channel_cbs, 0, sizeof (allocated_channel_cbs));
     memset ((void*)is_channel_allocated, 0, sizeof (is_channel_allocated));
 
+    /*
+     * Enable DMA Interrupts on the GIC and register a handler
+     */
     for (u32 i = VC_GIC_DMA_IRQ_START; i <= VC_GIC_DMA_IRQ_END; ++i) {
         gic_enable_interrupt (i, &dma_irq_default_handler);
-    }
-
-    for (u32 i = 0; i < DMA_4_CHANNEL_END + 1; ++i) {
-        /*
-         * Enable interrupts by default for all channels
-         */
-        write32 (DMA_TF_INFO (i), read32 (DMA_TF_INFO (i)) | DMA_TF_INFO_INT_ENABLE_BIT);
     }
 
     DATA_MEMORY_BARRIER_OUTER_STORES ();

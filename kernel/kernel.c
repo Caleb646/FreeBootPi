@@ -29,8 +29,8 @@ void show_invalid_entry_message (s32 type, u32 esr, u32 address) {
 }
 
 void kernel_main (void) {
-    // Cache should be invalidated  on reset and startup.
-    // For secondary cores as well.
+    // Cache should be invalidated on reset and startup.
+    // L1 cache for secondary cores should be as well.
     cache_invalidate ();
 
     init_printf (0, putc);
@@ -40,7 +40,7 @@ void kernel_main (void) {
     mem_init (NULLPTR);
     dma_init (NULLPTR);
     screen_init ();
-    // screen_draw_string (512, 512, "Hello World");
+    screen_draw_string (512, 512, WHITE, "Hello World");
     screen_draw_rect (0, 0, 200, 200, WHITE);
     while (1) {
         // u8* ptr = (u8*)malloc(sizeof(size_t));
@@ -49,6 +49,7 @@ void kernel_main (void) {
         // free(ptr);
         // screen_draw_rect (500, 500, 50, 50, WHITE);
         LOG_DEBUG ("Tick");
+        screen_update ();
         wait_ms (1000); //
     }
 }

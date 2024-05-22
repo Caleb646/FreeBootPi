@@ -25,23 +25,21 @@ typedef void (*irq_handler_t) (u32 irq_id);
 extern u32 __kernel_start;
 extern u32 __kernel_text_end;
 extern u32 __kernel_end;
-extern u32 __kernel_plus_stacks_end;
 
 // #define KERNEL_LOAD_ADDR    0x80000
 
-#define KERNEL_START_ADDR           ((uintptr_t)&__kernel_start)
-#define KERNEL_TEXT_END_ADDR        ((uintptr_t)&__kernel_text_end)
-#define KERNEL_ONLY_END_ADDR        ((uintptr_t)&__kernel_end)
-#define KERNEL_PLUS_STACKS_END_ADDR ((uintptr_t)&__kernel_plus_stacks_end)
+#define KERNEL_START_ADDR    ((uintptr_t)&__kernel_start)
+#define KERNEL_TEXT_END_ADDR ((uintptr_t)&__kernel_text_end)
+#define KERNEL_END_ADDR      ((uintptr_t)&__kernel_end)
 // #define KERNEL_MEM_SIZE             (KERNEL_END - KERNEL_START)
 
-#define NULLPTR                     ((void*)0)
-#define REG_PTR32(reg_addr)         *((u32 volatile*)reg_addr)
-#define REG_PTR64(reg_addr)         *((u64 volatile*)reg_addr)
+#define NULLPTR              ((void*)0)
+#define REG_PTR32(reg_addr)  *((u32 volatile*)reg_addr)
+#define REG_PTR64(reg_addr)  *((u64 volatile*)reg_addr)
 
-#define FALSE                       0
+#define FALSE                0
 
-#define GCC_NODISCARD               __attribute__ ((__warn_unused_result__))
+#define GCC_NODISCARD        __attribute__ ((__warn_unused_result__))
 #define GCC_ALIGN_ADDR(byte_alignment) \
     __attribute__ ((aligned (byte_alignment)))
 
@@ -56,6 +54,8 @@ extern u32 __kernel_plus_stacks_end;
  * A 32 bit VPU Bus address uses the most significant 2 bits for cache control.
  * The DMA bus address space is 0xC000_0000 to 0xFFFF_FFFF and it is an uncached space.
  * It represents the 1st GB of SRAM. So a physical SRAM address of 0x20 gets mapped to the bus address of 0xC000_0020
+ *
+ * 0xC000_0000 is an alias for the 1st GB of SRAM. This alias tells the VPU to not cache the data at this address
  */
 #define ARM_TO_VPU_BUS_ADDR(addr) (VPU_BUS_TO_ARM_ADDR (addr) | 0xC0000000)
 

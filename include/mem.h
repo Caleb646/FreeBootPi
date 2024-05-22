@@ -33,11 +33,11 @@ extern u8 high_heap[TEST_HEAP_SIZE];
 /* Assume VC DRAM is no larger than 256 MBs (0xF424000) */
 #define VC_DRAM_MEM_START       (VC_DRAM_MEM_END - 0xF424000)
 /*
- * Low DRAM for ARM is where the Kernel starts (0x80000)
+ * Low DRAM for ARM is where the Kernel ends and VPU starts
  * Below this is where armstub put spin table for the secondary cores.
  */
-#define ARM_DRAM_LOW_MEM_START  0x01000
-#define ARM_DRAM_LOW_MEM_END    KERNEL_START_ADDR
+#define ARM_DRAM_LOW_MEM_START  KERNEL_END_ADDR
+#define ARM_DRAM_LOW_MEM_END    VC_DRAM_MEM_START
 #define ARM_DRAM_MID_MEM_START  0x040000000 /* Top of SDRAM for the Video Core */
 #define ARM_DRAM_MID_MEM_END    0x0FC000000 /* Start of the Main Peripherals */
 /*
@@ -78,6 +78,7 @@ typedef struct heap_s {
 } heap_s;
 
 GCC_NODISCARD void* align_allocate (size_t sz, size_t alignment);
+GCC_NODISCARD void* callocate (heap_id_t heap_id, size_t sz);
 GCC_NODISCARD void* calign_allocate (heap_id_t heap_id, size_t sz, size_t alignment);
 GCC_NODISCARD void* align_allocate_set (size_t sz, u8 value, size_t alignment);
 GCC_NODISCARD void* allocate (size_t sz);

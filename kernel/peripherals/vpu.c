@@ -32,7 +32,7 @@ s32 vpu_call (u32 (*buffer_ptr)[VPU_CMD_BUFFER_SIZE], u8 channel) {
     // LOG_INFO ("Screen Height [%u]", cmd_buffer_[5]);
     u32 buff_addr = (u32)cmd_buffer_;
     if ((buff_addr & 0xF) > 0) {
-        LOG_ERROR ("VPU CMD Buffer is NOT 16 byte aligned. Address [%X]", buff_addr);
+        LOG_ERROR ("VPU CMD Buffer is NOT 16 byte aligned. Address [0x%X]", buff_addr);
         return 0;
     } else if (channel > 0xF) {
         LOG_ERROR ("Max Channel value is 4 bits in size. Got [%u]", channel);

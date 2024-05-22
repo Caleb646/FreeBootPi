@@ -26,7 +26,64 @@
 
 SECTIONS
 {
-    . = 0x80000;     /* Kernel load address for AArch64 */
+    /* 
+    * Put the end of the kernel stacks here. Below 0x1000 is where the armstub sets cores 1-3 to spin
+    */
+    . = 0x1000;
+
+    .stack_core3 :	{
+        . = ALIGN(16);				/* Stack must always be aligned to 16 byte boundary AAPCS call standard */
+        __stack_start_core3__ = .;
+        . = . + 512;				/* EL0 stack size */
+        __EL0_stack_core3 = .;
+        . = . + 16384;				/* EL1 stack size */
+        __EL1_stack_core3 = .;
+        . = . + 512;				/* EL2 stack size (start-up) */
+        __EL2_stack_core3 = .;
+        __stack_end_core3__ = .;  
+    }
+
+    .stack_core2 :	{
+        . = ALIGN(16);				 /* Stack must always be aligned to 16 byte boundary AAPCS call standard */
+        __stack_start_core2__ = .;
+        . = . + 512;				/* EL0 stack size */
+        __EL0_stack_core2 = .;
+        . = . + 16384;				/* EL1 stack size */
+        __EL1_stack_core2 = .;
+        . = . + 512;				/* EL2 stack size (start-up) */
+        __EL2_stack_core2 = .;
+        __stack_end_core2__ = .;  
+    }
+
+    .stack_core1 : {
+        . = ALIGN(16);				/* Stack must always be aligned to 16 byte boundary AAPCS64 call standard */
+        __stack_start_core1__ = .;
+        . = . + 512;				/* EL0 stack size */
+        __EL0_stack_core1 = .;
+        . = . + 16384;				/* EL1 stack size */
+        __EL1_stack_core1 = .;
+        . = . + 512;				/* EL2 stack size (start-up) */
+        __EL2_stack_core1 = .;
+        __stack_end_core1__ = .;    
+    }
+
+    .stack_core0 : {
+        . = ALIGN(16);				/* Stack must always be aligned to 16 byte boundary AAPCS64 call standard */
+        __stack_start_core0__ = .;
+        . = . + 512;				/* EL0 stack size */
+        __EL0_stack_core0 = .;
+        . = . + 16384;				/* EL1 stack size */
+        __EL1_stack_core0 = .;
+        . = . + 512;				/* EL2 stack size (start-up) */
+        __EL2_stack_core0 = .;
+        __stack_end_core0__ = .;    
+    }
+    __KERNEL_STACK_END = .;
+
+    /* 
+    * Kernel load address for AArch64 
+    */
+    . = 0x80000;     
     __kernel_start = .;
     .text : { KEEP(*(.text.boot)) *(.text .text.* .gnu.linkonce.t*) }
     __kernel_text_end = .;
@@ -42,56 +99,9 @@ SECTIONS
     }
     __kernel_end = .;
 
-    .stack_core0 : {
-    . = ALIGN(16);				/* Stack must always be aligned to 16 byte boundary AAPCS64 call standard */
-    __stack_start_core0__ = .;
-    . = . + 512;				/* EL0 stack size */
-    __EL0_stack_core0 = .;
-    . = . + 16384;				/* EL1 stack size */
-    __EL1_stack_core0 = .;
-    . = . + 512;				/* EL2 stack size (start-up) */
-    __EL2_stack_core0 = .;
-    __stack_end_core0__ = .;    
-    }
-
-	.stack_core1 : {
-        . = ALIGN(16);				/* Stack must always be aligned to 16 byte boundary AAPCS64 call standard */
-        __stack_start_core1__ = .;
-        . = . + 512;				/* EL0 stack size */
-        __EL0_stack_core1 = .;
-		. = . + 1024;				/* EL1 stack size */
-        __EL1_stack_core1 = .;
-        . = . + 512;				/* EL2 stack size (start-up) */
-        __EL2_stack_core1 = .;
-        __stack_end_core1__ = .;    
-    }
-
-	.stack_core2 :	{
-        . = ALIGN(16);				 /* Stack must always be aligned to 16 byte boundary AAPCS call standard */
-        __stack_start_core2__ = .;
-        . = . + 512;				/* EL0 stack size */
-        __EL0_stack_core2 = .;
-        . = . + 1024;				/* EL1 stack size */
-        __EL1_stack_core2 = .;
-        . = . + 512;				/* EL2 stack size (start-up) */
-        __EL2_stack_core2 = .;
-        __stack_end_core2__ = .;  
-    }
-
-	.stack_core3 :	{
-        . = ALIGN(16);				/* Stack must always be aligned to 16 byte boundary AAPCS call standard */
-        __stack_start_core3__ = .;
-        . = . + 512;				/* EL0 stack size */
-        __EL0_stack_core3 = .;
-        . = . + 1024;				/* EL1 stack size */
-        __EL1_stack_core3 = .;
-        . = . + 512;				/* EL2 stack size (start-up) */
-       	__EL2_stack_core3 = .;
-       	__stack_end_core3__ = .;  
-    }
-
-    __kernel_plus_stacks_end = .;
-    
    /DISCARD/ : { *(.comment) *(.gnu*) *(.note*) *(.eh_frame*) }
     __bss_size = (__bss_end - __bss_start); 
 }
+
+ASSERT(__KERNEL_STACK_END < 0x80000, "Kernel stack space overwritting kernel");
+ASSERT( (__kernel_end - __kernel_start) < 0x500000, "Kernel size minus stacks should be less than 5MB");

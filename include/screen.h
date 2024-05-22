@@ -16,8 +16,9 @@
 void screen_init (void);
 void screen_draw_pixel (u32 x, u32 y, u32 pixel_color);
 void screen_draw_rect (u32 x, u32 y, u32 width, u32 height, u32 color);
-void screen_draw_char (u32 x, u32 y, char c);
-void screen_draw_string (u32 x, u32 y, char* str);
+void screen_draw_char (u32 x, u32 y, u32 color, char c);
+void screen_draw_string (u32 x, u32 y, u32 color, char* str);
+void screen_update (void);
 
 // Source: https://github.com/dhepper/font8x8/blob/master/font8x8_basic.h
 static s8 const font[NUM_GLYPHS][BYTES_PER_GLYPH] = {

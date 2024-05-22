@@ -48,7 +48,7 @@ GCC_NODISCARD static void* align_allocate_ (heap_s* heap, size_t sz, size_t alig
         prev   = (*cur);
         (*cur) = (*cur)->next;
     }
-    if (alloc == NULLPTR && ((uintptr_t)heap->end - (uintptr_t)heap->cur_pos) < (sz + sizeof (size_t))) {
+    if (alloc == NULLPTR && ((uintptr_t)heap->end - (uintptr_t)heap->cur_pos) > (sz + sizeof (size_t))) {
         /* Aligning address using modulo */
         // u32 alignment = ((uintptr_t)(heap_current + sizeof(size_t))) % MALLOC_ADDR_ALIGNMENT;
         // heap_current += MALLOC_ADDR_ALIGNMENT - alignment;
@@ -81,6 +81,13 @@ GCC_NODISCARD static void* align_allocate_ (heap_s* heap, size_t sz, size_t alig
  */
 GCC_NODISCARD void* align_allocate (size_t sz, size_t alignment) {
     return align_allocate_ (&(heaps[MEM_STANDARD_HEAP_ID]), sz, alignment);
+}
+
+GCC_NODISCARD void* callocate (heap_id_t heap_id, size_t sz) {
+    if (heap_id < MEM_NUM_HEAP_SECTIONS) {
+        return align_allocate_ (&(heaps[heap_id]), sz, MALLOC_ADDR_ALIGNMENT);
+    }
+    return NULLPTR;
 }
 
 /*
@@ -148,7 +155,11 @@ void delete (void* ptr) {
 }
 
 
+/**********************************************************************************/
 /**************************** Setup MMU *******************************************/
+/**********************************************************************************/
+
+
 #define MMU_LEVEL2_ENTRIES                    128
 #define MMU_LEVEL2_PAGE_SIZE                  0x1000 // 4KB
 #define MMU_LEVEL3_ENTRIES                    8192
