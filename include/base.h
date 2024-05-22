@@ -29,10 +29,10 @@ extern u32 __kernel_plus_stacks_end;
 
 // #define KERNEL_LOAD_ADDR    0x80000
 
-#define KERNEL_START_ADDR           &__kernel_start
-#define KERNEL_TEXT_END_ADDR        &__kernel_text_end
-#define KERNEL_ONLY_END_ADDR        &__kernel_end
-#define KERNEL_PLUS_STACKS_END_ADDR &__kernel_plus_stacks_end
+#define KERNEL_START_ADDR           ((uintptr_t)&__kernel_start)
+#define KERNEL_TEXT_END_ADDR        ((uintptr_t)&__kernel_text_end)
+#define KERNEL_ONLY_END_ADDR        ((uintptr_t)&__kernel_end)
+#define KERNEL_PLUS_STACKS_END_ADDR ((uintptr_t)&__kernel_plus_stacks_end)
 // #define KERNEL_MEM_SIZE             (KERNEL_END - KERNEL_START)
 
 #define NULLPTR                     ((void*)0)
