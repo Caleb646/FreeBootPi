@@ -61,6 +61,7 @@ extern u32 __kernel_plus_stacks_end;
 
 
 void write32 (u64 addr, u32 val);
+void write64 (u64 addr, u64 val);
 u32 read32 (u64 addr);
 u64 get_arm_core_id (void);
 u64 get_arm_exception_lvl (void);

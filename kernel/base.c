@@ -4,6 +4,10 @@ void write32 (u64 addr, u32 val) {
     REG_PTR32 (addr) = val;
 }
 
+void write64 (u64 addr, u64 val) {
+    REG_PTR64 (addr) = val;
+}
+
 u32 read32 (u64 addr) {
     return REG_PTR32 (addr);
 }

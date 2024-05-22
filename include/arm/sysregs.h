@@ -30,6 +30,7 @@
 #define SCTLR_EE_BIG_ENDIAN              (1 << 25)
 // Controls endianess of explicit data access at EL0
 #define SCTLR_EOE_BIG_ENDIAN             (1 << 24)
+#define SCTLR_WXN                        (1 << 19)
 // Enable instruction cache
 #define SCTLR_I_CACHE_ENABLED            (1 << 12)
 // SP Alignment check enable for EL0. When set to 1, if a load or store instruction
@@ -42,6 +43,19 @@
 #define SCTLR_EL1_SP_ALIGNMENT_CHECK_EL1 (1 << 3)
 // Enable data cache
 #define SCTLR_D_CACHE_ENABLED            (1 << 2)
+/*
+ * This is the enable bit for Alignment fault checking at EL1 and EL0.
+ *   0b0	-- Alignment fault checking disabled when executing at EL1 or EL0.
+ *       Instructions that load or store one or more registers, other than load/store exclusive
+ *       and load-acquire/store-release, do not check that the address being accessed is aligned
+ *       to the size of the data element(s) being accessed.
+ *
+ *   0b1	-- Alignment fault checking enabled when executing at EL1 or EL0. All instructions that
+ *       load or store one or more registers have an alignment check that the address being accessed
+ *       is aligned to the size of the data element(s) being accessed. If this check fails it causes
+ *       an Alignment fault, which is taken as a Data Abort exception.
+ */
+#define SCTLR_ALIGNMENT                  (1 << 1)
 // MMU enable for (if using sctlr_el1) EL1&0 stage 1 address translation.
 #define SCTLR_MMU_ENABLED                (1 << 0)
 #define SCTLR_EL1_VALUE                                                         \

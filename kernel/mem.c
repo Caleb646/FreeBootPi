@@ -4,6 +4,7 @@ extern u8 low_heap[TEST_HEAP_SIZE];
 extern u8 mid_heap[TEST_HEAP_SIZE];
 extern u8 high_heap[TEST_HEAP_SIZE];
 #else
+#include "arm/sysregs.h"
 #include "printf.h"
 #include "sync.h"
 #endif
@@ -377,7 +378,7 @@ typedef struct page_desc_lvl3 {
 } page_desc_lvl3;
 // clang-format on
 
-void* create_translation_tbl_lvl3_ (uintptr_t addr) {
+static void* create_translation_tbl_lvl3_ (uintptr_t addr) {
     page_desc_lvl3* tbl =
     (page_desc_lvl3*)calign_allocate (MEM_MID_HEAP_ID, MMU_LEVEL3_PAGE_SIZE, MMU_LEVEL3_PAGE_SIZE);
     memset (tbl, 0, MMU_LEVEL3_PAGE_SIZE);
@@ -421,18 +422,65 @@ void* create_translation_tbl_lvl3_ (uintptr_t addr) {
     return (void*)tbl;
 }
 
-void* translation_tbl_init (void) {
+static void* translation_tbl_init_ (void) {
     uintptr_t addr = 0x0;
     tbl_desc_lvl2* table_ptr =
     (tbl_desc_lvl2*)calign_allocate (MEM_MID_HEAP_ID, MMU_LEVEL2_PAGE_SIZE, MMU_LEVEL2_PAGE_SIZE);
     memset (table_ptr, 0, MMU_LEVEL2_PAGE_SIZE);
 
     for (uintptr_t entry_idx = 0; entry_idx < MMU_LEVEL2_ENTRIES; ++entry_idx) {
-        addr = entry_idx * MMU_LEVEL3_ENTRIES * MMU_LEVEL3_PAGE_SIZE;
+        addr         = entry_idx * MMU_LEVEL3_ENTRIES * MMU_LEVEL3_PAGE_SIZE;
+        void* subtbl = create_translation_tbl_lvl3_ (addr);
+
+        tbl_desc_lvl2* desc = &(table_ptr[entry_idx]);
+        desc->entry_type    = 0x3; // table descriptor
+        desc->tbl_addr      = LEVEL2_TBL_ADDR ((uintptr_t)subtbl);
+        desc->pxn_tbl       = 0;
+        desc->xn_tbl        = 0;
+        desc->ap_tbl        = 0;
+        desc->ns_tbl        = 0;
     }
 
-
     return (void*)table_ptr;
+}
+
+static void enable_mmu_ (void) {
+    void* tran_tbl = translation_tbl_init_ ();
+
+    u64 mair = MAIR_DEVICE << MAIR_DEVICE_IDX * 8;
+    mair |= MAIR_DEVICE_COHERENT << MAIR_DEVICE_COHERENT_IDX * 8;
+    mair |= MAIR_NORMAL << MAIR_NORMAL_IDX * 8;
+    mair |= MAIR_NORMAL_NO_CACHE << MAIR_NORMAL_NO_CACHE_IDX * 8;
+    asm volatile("msr mair_el1, %0" : : "r"(mair));
+
+    asm volatile("msr ttbr0_el1, %0" : : "r"((uintptr_t)tran_tbl));
+
+    u64 tcr;
+    asm volatile("mrs %0, tcr_el1" : "=r"(tcr));
+    tcr &= ~TCR_MASK (0);
+    tcr |= TCR_EPDN_ALLOW_TBL_WALK (0);
+    tcr |= TCR_EPDN_NO_TBL_WALK (1); // disable tbl walks for ttbr1_el1 addresses (0xFFFFF....)
+    tcr |= TCR_TGN_64KB (0);
+    tcr |= TCR_SHN_INNER (0);
+    tcr |= TCR_ORGNN_NORMAL_OUTER_WB_CACHE (0);
+    tcr |= TCR_IRGNN_NORMAL_INNER_WB_CACHE (0);
+    tcr |= TCR_IPS_36;
+    tcr |= TCR_TNSZ_64GB (0);
+    asm volatile("msr tcr_el1, %0" : : "r"(tcr));
+
+    // Force changes to be seen before MMU is enabled
+    ISB ();
+
+    u64 sctlr;
+    asm volatile("mrs %0, sctlr_el1" : "=r"(sctlr));
+    sctlr &= ~(SCTLR_WXN | SCTLR_ALIGNMENT);
+    sctlr |= SCTLR_I_CACHE_ENABLED;
+    sctlr |= SCTLR_D_CACHE_ENABLED;
+    sctlr |= SCTLR_MMU_ENABLED;
+
+    asm volatile("msr sctlr_el1, %0" : : "r"(sctlr));
+
+    ISB ();
 }
 
 s32 mem_init (heap_s* hp) {

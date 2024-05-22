@@ -3,6 +3,7 @@
 
 #include "base.h"
 
+
 #ifdef ON_HOST_TESTING
 #define TEST_HEAP_SIZE 512
 extern u8 low_heap[TEST_HEAP_SIZE];
