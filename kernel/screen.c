@@ -62,14 +62,15 @@ void screen_init (void) {
         // phy_width      = cmd_buffer[5];  // Physical width
         // phy_height     = cmd_buffer[6];  // Physical height
         // TODO: seems like width and height values are flipped
-        screen_width      = cmd_buffer[10]; // Virtual width
-        screen_height     = cmd_buffer[11]; // Virtual height
-        bytes_per_line    = cmd_buffer[33]; // Number of bytes per line
-        pix_order         = cmd_buffer[24]; // Pixel order
-        vpu_frame_buffer_ = (u8*)VPU_BUS_TO_ARM_ADDR (cmd_buffer[28]);
+        screen_width   = cmd_buffer[10]; // Virtual width
+        screen_height  = cmd_buffer[11]; // Virtual height
+        bytes_per_line = cmd_buffer[33]; // Number of bytes per line
+        pix_order      = cmd_buffer[24]; // Pixel order
+        // cast to uintptr_t first to remove compiler warning
+        vpu_frame_buffer_ = (u8*)(uintptr_t)VPU_BUS_TO_ARM_ADDR (cmd_buffer[28]);
         // Buffer size: 1920 x 1080 x 4 (32 bit color)
         fb_size = cmd_buffer[29];
-        LOG_INFO ("VPU Frame Buffer Addr [0x%X] Size [%u]", (u32)vpu_frame_buffer_, fb_size);
+        LOG_INFO ("VPU Frame Buffer Addr [0x%X] Size [%u]", (u64)vpu_frame_buffer_, fb_size);
         LOG_INFO ("Virtual Height [%u] Width [%u]", screen_height, screen_width);
         LOG_INFO ("Pixel Order [%u]", pix_order);
         LOG_INFO ("Bytes Per Line [%u]", bytes_per_line);
@@ -77,7 +78,7 @@ void screen_init (void) {
         frame_buffer_ = (u8*)callocate (MEM_LOW_HEAP_ID, fb_size);
         LOG_INFO (
         "Local Frame Buffer Addr [0x%X] End [0x%X] Kernel Start [0x%X]",
-        (u32)frame_buffer_, (u32)(frame_buffer_ + fb_size), KERNEL_START_ADDR);
+        (u64)frame_buffer_, (u64)(frame_buffer_ + fb_size), KERNEL_START_ADDR);
         if (frame_buffer_ == NULLPTR) {
             LOG_ERROR ("Failed to initialize local frame buffer for screen");
         }

@@ -294,24 +294,30 @@ dma_transfer (anonymous_cb_t cbs[DMA_MAX_CBS_PER_CHANNEL], u32 ncbs, u32 channel
             }
         }
 
-        if (((uintptr_t) & (allocated_channel_cbs[channel_id + i])) & 0x1F > 0) {
+        uintptr_t addr = (uintptr_t) & (allocated_channel_cbs[channel_id + i]);
+        if ((addr & 0x1F) > 0) {
             LOG_ERROR ("DMA control block is NOT 32 byte aligned");
         }
         memcopy (&(cbs[i]), sizeof (anonymous_cb_t), &(allocated_channel_cbs[channel_id + i]));
     }
-
-    u32 control_block_addr = (u32)(&(allocated_channel_cbs[channel_id]));
-
+    // cb addrs are not 64 bits but this makes the compiler happy
+    u64 control_block_addr = (u64)(&(allocated_channel_cbs[channel_id]));
     if (dma_type == DMA4) {
         // TODO: dma4 has two seperate registers for the low and high part of
         // of the address.
         control_block_addr >>= DMA4_CB_ADDR_SHIFT;
     } else {
         // NOTE: only have 32 - 5 (32 byte alignment) - 2 (vpu cache control)
-        // bits to address each control block. vvaa ........ 0 0000 allocated_channel_cbs
-        // is currently stored somewhere around 0x84260 in the .bss section. If
-        // it is moved and the address takes more than 27 bits to represent the
-        // u32 cast will truncate it and weird things will happen.
+        // bits to address each control block. vvaa ........ 0 0000
+        // allocated_channel_cbs is currently stored somewhere around 0x84260 in
+        // the .bss section. If it is moved and the address takes more than 27
+        // bits to represent the u32 cast will truncate it and weird things will
+        // happen. 0011 1111 1111 1111 1111 1111 1110 0000
+        if (control_block_addr > 0x3FFFFFE0) {
+            LOG_ERROR ("DMA control block address is out of bounds for DMA and "
+                       "DMA Lite Channels");
+            return DMA_ERROR_ON_SETUP;
+        }
         control_block_addr = ARM_TO_VPU_BUS_ADDR (control_block_addr);
     }
     write32 (DMA_CONTROL_BLOCK_ADDR (channel_id), control_block_addr);

@@ -90,7 +90,7 @@ typedef enum dma_status_t {
     DMA_NO_OPEN_CHANNELS,
     DMA_ERROR_ON_TRANSFER,
     DMA_TRANSFER_TOO_LARGE,
-    DMA_FAILED_ALLOC_CB
+    DMA_ERROR_ON_SETUP
 
 } dma_status_t;
 

@@ -29,10 +29,16 @@ static u32 volatile GCC_ALIGN_ADDR (16) cmd_buffer_[VPU_CMD_BUFFER_SIZE] = { 0 }
 // https://github.com/raspberrypi/firmware/wiki/Mailbox-property-interface
 s32 vpu_call (u32 (*buffer_ptr)[VPU_CMD_BUFFER_SIZE], u8 channel) {
     memcopy (*buffer_ptr, sizeof (cmd_buffer_), (void*)cmd_buffer_);
-    // LOG_INFO ("Screen Height [%u]", cmd_buffer_[5]);
-    u32 buff_addr = (u32)cmd_buffer_;
+    // buffer address have a max address
+    u64 buff_addr = (u64)cmd_buffer_;
     if ((buff_addr & 0xF) > 0) {
         LOG_ERROR ("VPU CMD Buffer is NOT 16 byte aligned. Address [0x%X]", buff_addr);
+        return 0;
+    } else if (buff_addr > 0x3FFFFFF0) {
+        // 0011 1111 1111 1111 1111 1111 1111 0000
+        // Upper 2 bits are for VPU cache control.
+        // Bottom 4 bits are always zero.
+        LOG_ERROR ("VPU CMD Buffer address is out of bounds [0x%X]", buff_addr);
         return 0;
     } else if (channel > 0xF) {
         LOG_ERROR ("Max Channel value is 4 bits in size. Got [%u]", channel);
