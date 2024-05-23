@@ -77,6 +77,10 @@ AccessModifierOffset: 0
 #       argument1, argument2);
 AlignAfterOpenBracket: AlwaysBreak
 
+# Force clang-format to respect doxygen block comments
+# https://stackoverflow.com/questions/48016641/force-clang-format-to-respect-doxygen-block-comments
+CommentPragmas:  '^\\.+'
+
 # AlignConsecutiveAssignments (bool)
 # If true, aligns consecutive assignments.
 # This will align the assignment operators of consecutive lines. This will result in formattings like
