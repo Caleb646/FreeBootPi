@@ -70,12 +70,15 @@ void screen_init (void) {
         vpu_frame_buffer_ = (u8*)(uintptr_t)VPU_BUS_TO_ARM_ADDR (cmd_buffer[28]);
         // Buffer size: 1920 x 1080 x 4 (32 bit color)
         fb_size = cmd_buffer[29];
-        LOG_INFO ("VPU Frame Buffer Addr [0x%X] Size [%u]", (u64)vpu_frame_buffer_, fb_size);
+        LOG_INFO (
+        "VPU Frame Buffer ARM Addr [0x%X] BUS Addr [0x%X] Size [%u]",
+        (u64)vpu_frame_buffer_, cmd_buffer[28], fb_size);
         LOG_INFO ("Virtual Height [%u] Width [%u]", screen_height, screen_width);
         LOG_INFO ("Pixel Order [%u]", pix_order);
         LOG_INFO ("Bytes Per Line [%u]", bytes_per_line);
 
         frame_buffer_ = (u8*)callocate (MEM_LOW_HEAP_ID, fb_size);
+
         LOG_INFO (
         "Local Frame Buffer Addr [0x%X] End [0x%X] Kernel Start [0x%X]",
         (u64)frame_buffer_, (u64)(frame_buffer_ + fb_size), KERNEL_START_ADDR);
@@ -136,6 +139,7 @@ void screen_draw_string (u32 x, u32 y, u32 color, char* str) {
 
 void screen_update (void) {
     DATA_MEMORY_BARRIER_OUTER_STORES ();
+    // memcopy (frame_buffer_, fb_size, vpu_frame_buffer_);
     dma_status_t status =
     dma_memcpy ((uintptr_t)frame_buffer_, (uintptr_t)vpu_frame_buffer_, fb_size, DMA_STANDARD);
     if (status != DMA_OK) {

@@ -49,7 +49,7 @@ extern u32 __kernel_end;
  * and the bottom 30 bits are the physical address in SRAM.
  * So a bus address of 0xC000_0020 gets mapped to the physical SRAM address of 0x20
  */
-#define VPU_BUS_TO_ARM_ADDR(addr) (addr & (~0xC0000000))
+#define VPU_BUS_TO_ARM_ADDR(addr) ((uintptr_t)addr & (~0xC0000000))
 /*
  * A 32 bit VPU Bus address uses the most significant 2 bits for cache control.
  * The DMA bus address space is 0xC000_0000 to 0xFFFF_FFFF and it is an uncached space.

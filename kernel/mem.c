@@ -517,6 +517,15 @@ s32 mem_init (heap_s* hp) {
         heaps[MEM_LOW_HEAP_ID]  = low;
         heaps[MEM_MID_HEAP_ID]  = mid;
         heaps[MEM_HIGH_HEAP_ID] = high;
+        LOG_INFO (
+        "Low Heap Start [0x%X] End [0x%X]", (uintptr_t)heaps[MEM_LOW_HEAP_ID].start,
+        (uintptr_t)heaps[MEM_LOW_HEAP_ID].end);
+        LOG_INFO (
+        "Mid Heap Start [0x%X] End [0x%X]", (uintptr_t)heaps[MEM_MID_HEAP_ID].start,
+        (uintptr_t)heaps[MEM_MID_HEAP_ID].end);
+        LOG_INFO (
+        "High Heap Start [0x%X] End [0x%X]", (uintptr_t)heaps[MEM_HIGH_HEAP_ID].start,
+        (uintptr_t)heaps[MEM_HIGH_HEAP_ID].end);
         //#endif
     }
     return 1;

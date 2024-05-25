@@ -1,11 +1,12 @@
 #include "dma.h"
 #include "irq.h"
 #include "mem.h"
+#include "peripherals/timer.h"
 #include "printf.h"
 #include "sync.h"
 
-#define DMA_BASE           (PBASE + 0x2007000)
-#define DMA_CHANNEL_OFFSET 0x100
+#define DMA_BASE              (PBASE + 0x2007000)
+#define DMA_CHANNEL_OFFSET    0x100
 /*
  * Bit 31 = Reset = Writing 1 will reset DMA. WO and will self clear
  * Bit 30 = Abort = Writing 1 will abort current DMA Control Block. Will next CB
@@ -15,24 +16,25 @@
  * flag is set. Write 1 to clear. Must be cleared Bit 1 = Is 1, when transfer to
  * current CB is complete. Write 1 to clear Bit 0 = Set to 1 to enable DMA
  */
-#define CS(channel_id)     (DMA_BASE + (DMA_CHANNEL_OFFSET * channel_id) + 0x000)
-#define CS_RESET_BIT       (1 << 31)
-#define CS_ABORT_BIT       (1 << 30)
-#define CS_ERROR_BIT       (1 << 8)
-#define CS_WAITING_BIT     (1 << 6)
-#define CS_PAUSED_BIT      (1 << 4)
+#define CS(channel_id)        (DMA_BASE + (DMA_CHANNEL_OFFSET * channel_id) + 0x000)
+#define CS_RESET_BIT          (1 << 31)
+#define CS_ABORT_BIT          (1 << 30)
+#define CS_WAITFOR_WRITES_BIT (1 << 28)
+#define CS_ERROR_BIT          (1 << 8)
+#define CS_WAITING_BIT        (1 << 6)
+#define CS_PAUSED_BIT         (1 << 4)
 /*
  * This is set when the transfer for the CB ends and INTEN is set to 1.
  * Once set it must be manually cleared down, even if the next CB has INTEN = 0.
  * Write 1 to clear.
  */
-#define CS_INT_BIT         (1 << 2)
+#define CS_INT_BIT            (1 << 2)
 /*
  * Set when the transfer described by the current Control Block is complete. Write 1 to clear.
  */
-#define CS_END_BIT         (1 << 1)
-#define CS_DMA_ACTIVE_BIT  (1 << 0)
-#define CS_ABORT_VAL       (CS_ABORT_BIT | CS_INT_BIT | CS_ERROR_BIT)
+#define CS_END_BIT            (1 << 1)
+#define CS_DMA_ACTIVE_BIT     (1 << 0)
+#define CS_ABORT_VAL          (CS_ABORT_BIT | CS_INT_BIT | CS_ERROR_BIT)
 #define CS_INIT_TRANSFER_VAL \
     (CS_ERROR_BIT | CS_DMA_ACTIVE_BIT | CS_INT_BIT | CS_END_BIT)
 
@@ -59,6 +61,33 @@
  */
 #define DMA_TF_INFO(channel_id) \
     (DMA_BASE + (DMA_CHANNEL_OFFSET * channel_id) + 0x008)
+
+/*
+ * Source Transfer Width
+ * 1 = Use 128-bit source read width.
+ * 0 = Use 32-bit source read width.
+ */
+#define TF_INFO_SRC_WIDTH_BIT  (1 << 9)
+/*
+ * Source Address Increment
+ * 1 = Source address increments after each read. The
+ * address will increment by 4, if SRC_WIDTH=0 else by 32.
+ * 0 = Source address does not change.
+ */
+#define TF_INFO_SRC_INC_BIT    (1 << 8)
+/*
+ * Destination Transfer Width
+ * 1 = Use 128-bit destination write width.
+ * 0 = Use 32-bit destination write width.
+ */
+#define TF_INFO_DEST_WIDTH_BIT (1 << 5)
+/*
+ * Destination Address Increment
+ * 1 = Destination address increments after each write. The
+ * address will increment by 4, if DEST_WIDTH=0 else by 32.
+ * 0 = Destination address does not change.
+ */
+#define TF_INFO_DEST_INC_BIT   (1 << 4)
 
 /*
  * DMA Source Address
@@ -320,14 +349,26 @@ dma_transfer (anonymous_cb_t cbs[DMA_MAX_CBS_PER_CHANNEL], u32 ncbs, u32 channel
         }
         control_block_addr = ARM_TO_VPU_BUS_ADDR (control_block_addr);
     }
+    // dma_cb_t* cb = (dma4_cb_t*)&allocated_channel_cbs[channel_id];
+    // LOG_INFO ("DMA CB Byte Size [0x%X]", sizeof (anonymous_cb_t));
+    // LOG_INFO ("DMA CB Addr [0x%X]", control_block_addr);
+    // LOG_INFO ("DMA CB SRC Addr [0x%X]", cb->source_addr);
+    // LOG_INFO ("DMA CB Dest Addr [0x%X]", cb->dest_addr);
+    // LOG_INFO ("DMA CB Transfer Length [0x%X]", cb->transfer_length);
+    // LOG_INFO ("DMA CB Transfer Info [0x%X]", cb->transfer_info);
+    // LOG_INFO ("DMA CB Stride Mode [0x%X]", cb->stride_mode);
+    // LOG_INFO ("DMA CB Next CB Addr [0x%X]", cb->next_cb_addr);
+
     write32 (DMA_CONTROL_BLOCK_ADDR (channel_id), control_block_addr);
+    // LOG_INFO ("DMA CS Register Value BEFORE starting transfer: [0x%X]", read32 (CS (channel_id)));
     // Ensure control block address is written and visible to DMA before DMA is activated
     DATA_MEMORY_BARRIER_FS_STORES ();
-    // Clear error, end, interrupt bits and enable channel
-    write32 (CS (channel_id), read32 (CS (channel_id)) | CS_INIT_TRANSFER_VAL);
-
-    LOG_INFO ("Started DMA transfer for channel [%u]", channel_id);
-
+    // Check that end or interrupt bits are not set
+    u32 cs_status = read32 (CS (channel_id));
+    if ((cs_status & CS_END_BIT) > 0 || (cs_status & CS_INT_BIT) > 0) {
+        LOG_ERROR ("DMA CS register END or INTERRUPT bits are set to 1. Should be 0. [0x%X]", cs_status);
+    }
+    write32 (CS (channel_id), cs_status | CS_DMA_ACTIVE_BIT | CS_WAITFOR_WRITES_BIT);
     return DMA_OK;
 }
 
@@ -346,6 +387,9 @@ dma_type_t dma_type) {
         src_bus  = src_addr;
         dest_bus = dest_addr;
     }
+    // LOG_INFO ("Preparing memcopy");
+    // LOG_INFO ("SRC Bus Address [0x%X]", src_bus);
+    // LOG_INFO ("DEST Bus Address [0x%X]", dest_bus);
     memset (empty_cb, 0, sizeof (anonymous_cb_t));
 
     if (dma_type == DMA_STANDARD) {
@@ -398,9 +442,9 @@ dma_memcpy (uintptr_t src_addr, uintptr_t dest_addr, size_t transfer_length, dma
     /*
      * Enable interrupts for all Control Blocks
      */
-    u32 transfer_info = DMA_INT_ENABLE;
+    u32 transfer_info = 0;
+    transfer_info |= (2 << 12) | TF_INFO_SRC_INC_BIT | TF_INFO_DEST_INC_BIT | DMA_INT_ENABLE;
     anonymous_cb_t blocks[DMA_MAX_CBS_PER_CHANNEL];
-    // LOG_INFO ("Channel Allocated [%u] overflow cbs [%d]", channel_id, n_overflow_cbs);
     while (n_overflow_cbs > 0 && max_failed_attempts > 0) {
         status = dma_setup_memcpy_ (
         src_addr, dest_addr, DMA_MAX_TRANSFER_LENGTH, transfer_info,
@@ -447,7 +491,7 @@ static void dma_irq_handler (u32 irq_id) {
          * the last of several control blocks has finished.
          */
         if (next_cb_addr == 0) {
-            LOG_INFO ("DMA Channel [%u] finished transfer", channel_id);
+            LOG_INFO ("DMA Channel [%u] finished transfer with status [0x%X]", channel_id, status);
             dma_delete_channel (channel_id);
             return;
         }
@@ -457,7 +501,7 @@ static void dma_irq_handler (u32 irq_id) {
          */
         else {
             /*
-             * clear interrupt bit
+             * clear interrupt and end bit
              */
             write32 (CS (channel_id), status | CS_INT_BIT | CS_END_BIT);
             return;
