@@ -46,6 +46,8 @@ extern u8 high_heap[TEST_HEAP_SIZE];
 #define ARM_DRAM_HIGH_MEM_START 0x100000000
 #define ARM_DRAM_HIGH_MEM_END   0x400000000
 
+#define PAGE_SIZE               0x10000 // 64KB
+
 #endif
 
 /* Size of cache line */
@@ -83,8 +85,13 @@ GCC_NODISCARD void* calign_allocate (heap_id_t heap_id, size_t sz, size_t alignm
 GCC_NODISCARD void* align_allocate_set (size_t sz, u8 value, size_t alignment);
 GCC_NODISCARD void* allocate (size_t sz);
 
+GCC_NODISCARD void* page_allocate (void);
+
 void delete (void* ptr);
 s32 mem_init (heap_s*);
+
+
+void enable_mmu (void);
 
 
 #endif // __ASSEMBLER__

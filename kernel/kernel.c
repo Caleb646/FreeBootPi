@@ -25,7 +25,7 @@ const char* entry_error_messages[] = {
 };
 
 void show_invalid_entry_message (s32 type, u32 esr, u32 address) {
-    LOG_ERROR ("%s, ESR: %x, address, %x", entry_error_messages[type], esr, address);
+    LOG_ERROR ("[%s] ESR: [%x], address [%x]", entry_error_messages[type], esr, address);
 }
 
 void kernel_main (void) {
@@ -34,10 +34,13 @@ void kernel_main (void) {
     cache_invalidate ();
 
     init_printf (0, putc);
-    LOG_DEBUG ("Hello from Kernel");
+    LOG_DEBUG ("Exception Level: [0x%X]", get_arm_exception_lvl ());
     irq_init ();
     timer_init (VC_GIC_SYSTEM_TIMER_IRQ_3);
     mem_init (NULLPTR);
+
+    enable_mmu ();
+
     dma_init (NULLPTR);
     screen_init ();
     screen_draw_string (512, 512, WHITE, "Hello World");

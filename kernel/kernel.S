@@ -84,7 +84,8 @@ _start: //
 	ldr x0, =__EL2_stack_core0
 	ldr x1, =__EL1_stack_core0
 	ldr x2, =__EL0_stack_core0
-	mov	sp, x0	    // EL2 stack set 
+	// msr	sp_el2, x0	    
+	mov sp, x0 		// EL2 stack set
 	msr	sp_el1, x1	// EL1 stack set
 	msr	sp_el0, x2	// EL0 stack set
 
@@ -117,6 +118,12 @@ _start: //
 	* and the virtual count value visible in CNTVCT_EL0. 
 	*/
 	msr	cntvoff_el2, xzr
+
+	/* Initilize MPID/MPIDR registers */
+	mrs	x0, midr_el1
+	mrs	x1, mpidr_el1
+	msr	vpidr_el2, x0
+	msr	vmpidr_el2, x1
 
 	/* Disable coprocessor traps */
 	/*
@@ -177,15 +184,20 @@ _start: //
 	* 	0b10 == This control causes execution of these instructions at EL1 and EL0 to be trapped.
 	* 	0b11 == This control does not cause execution of any instructions to be trapped.
 	*/
-	mov	x0, #3 << 20
-	msr	cpacr_el1, x0	/* Enable FP/SIMD at EL1 */
+	mov x0, #0
+	orr x0, x0, #3 << 20 // don't trap SIMD/FP registers
+	orr x0, x0, #3 << 16 // don't trap SVE instructions
+	msr	cpacr_el1, x0
 
 	// Hypervisor Configuration Register for EL2
 	ldr	x0, =HCR_EL2_VALUE
 	msr	hcr_el2, x0
 
 	// Disable MMU for EL1 & EL0
-	ldr	x0, =SCTLR_EL1_VALUE
+	// ldr	x0, =SCTLR_EL1_VALUE
+	// msr	sctlr_el1, x0
+	mov	x0, #0x0800
+	movk	x0, #0x30d0, lsl #16
 	msr	sctlr_el1, x0
 
 	// Disable (Mask) DAIF Interrupts

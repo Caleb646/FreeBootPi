@@ -22,7 +22,7 @@ u64 get_arm_exception_lvl (void) {
     u64 lvl;
     asm volatile("mrs x0, CurrentEL\n"
                  "lsr x0, x0, #2\n"
-                 "str x0, [%0]\n"
+                 "mov %0, x0\n"
                  : "=r"(lvl));
     return lvl;
 }

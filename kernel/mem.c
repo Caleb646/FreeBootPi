@@ -22,6 +22,13 @@ static s32 find_heap (void* ptr) {
     return -1;
 }
 
+GCC_NODISCARD void* page_allocate (void) {
+    heap_s* heap = &heaps[MEM_MID_HEAP_ID];
+    void* alloc  = heap->cur_pos;
+    heap->cur_pos += PAGE_SIZE;
+    return alloc;
+}
+
 GCC_NODISCARD static void* align_allocate_ (heap_s* heap, size_t sz, size_t alignment) {
     // Interrupt but NOT thread safe
     s32 status = enter_critical (IRQ_DISABLED_FIQ_DISABLED_TARGET);
@@ -48,7 +55,8 @@ GCC_NODISCARD static void* align_allocate_ (heap_s* heap, size_t sz, size_t alig
         prev   = (*cur);
         (*cur) = (*cur)->next;
     }
-    if (alloc == NULLPTR && ((uintptr_t)heap->end - (uintptr_t)heap->cur_pos) > (sz + sizeof (size_t))) {
+    size_t heap_mem_left = (uintptr_t)heap->end - (uintptr_t)heap->cur_pos;
+    if (alloc == NULLPTR && heap_mem_left > (sz + sizeof (size_t))) {
         /* Aligning address using modulo */
         // u32 alignment = ((uintptr_t)(heap_current + sizeof(size_t))) % MALLOC_ADDR_ALIGNMENT;
         // heap_current += MALLOC_ADDR_ALIGNMENT - alignment;
@@ -62,7 +70,7 @@ GCC_NODISCARD static void* align_allocate_ (heap_s* heap, size_t sz, size_t alig
          * sizeof(size_t) returns the aligned address for alloc->next.
          */
         heap->cur_pos =
-        (u8*)(((uintptr_t)heap->cur_pos + (uintptr_t)(alignment - 1) + sizeof (size_t)) & (uintptr_t)(~(alignment - 1)));
+        (u8*)(((uintptr_t)heap->cur_pos + (alignment - 1) + sizeof (size_t)) & (~(alignment - 1)));
         alloc     = (node_s*)((uintptr_t)heap->cur_pos - sizeof (size_t));
         alloc->sz = sz;
         heap->cur_pos += sz;
@@ -160,10 +168,10 @@ void delete (void* ptr) {
 /**********************************************************************************/
 
 
-#define MMU_LEVEL2_ENTRIES                    128
-#define MMU_LEVEL2_PAGE_SIZE                  0x1000 // 4KB
-#define MMU_LEVEL3_ENTRIES                    8192
-#define MMU_LEVEL3_PAGE_SIZE                  0x10000 // 64KB
+#define MMU_LEVEL2_ENTRIES   128
+#define MMU_LEVEL2_PAGE_SIZE 0x1000 // 4KB
+#define MMU_LEVEL3_ENTRIES   8192
+
 
 // #define MMU_BLOCK_DESC_TYPE                   0x1
 // #define MMU_TBL_DESC_TYPE                     0x3
@@ -172,13 +180,14 @@ void delete (void* ptr) {
  * Granule size is 64KB so m is 16.
  * pg 2566 of arm reference manual
  */
-#define MMU_GRANULE_SIZE_M                    16
+#define MMU_GRANULE_SIZE_M   16
 /*
  *  Level 2 Table Entry bits [47:m] == bits [47:m] for the base physical address
  * of the Level 3 Page Table. So the base physical address for Level 3 Page
  * Table needs to have the bottom [(m - 1):0] bits set to 0.
  */
-#define LEVEL2_TBL_ADDR(addr)                 ((addr >> MMU_GRANULE_SIZE_M) & 0xFFFFFFFF)
+#define LEVEL2_TBL_ADDR(addr) \
+    (((uintptr_t)addr >> MMU_GRANULE_SIZE_M) & 0xFFFFFFFFUL)
 /*
  * Core sends 64-bit virtual address:
  *   Bits [(m-1):0] of the given virtual address are the bottom [(m-1):0] bits for the translated physical address.
@@ -187,7 +196,8 @@ void delete (void* ptr) {
  *   So the physical address given to the lvl 3 page entry needs to be shifted right m places so
  *   it will be in the correct position when added together to create the translated physical address.
  */
-#define LEVEL3_PHYS_ADDR(addr)                ((addr >> MMU_GRANULE_SIZE_M) & 0xFFFFFFFF)
+#define LEVEL3_PHYS_ADDR(addr) \
+    (((uintptr_t)addr >> MMU_GRANULE_SIZE_M) & 0xFFFFFFFFUL)
 
 /*
  * mair_el1 Register: https://developer.arm.com/documentation/ddi0601/2024-03/AArch64-Registers/MAIR-EL1--Memory-Attribute-Indirection-Register--EL1-?lang=en
@@ -232,7 +242,10 @@ void delete (void* ptr) {
 #define MAIR_DEVICE_COHERENT MAIR_DEVICE_NGNRNE
 #define MAIR_DEVICE          MAIR_DEVICE_NGNRE
 
-/* Intermediate Physical Address Size */
+/*
+ * 64 bit TCR Register: https://developer.arm.com/documentation/ddi0601/2024-03/AArch64-Registers/TCR-EL1--Translation-Control-Register--EL1-
+ * Intermediate Physical Address Size
+ */
 #define TCR_IPS_32           (0b000UL << 32) // 32 bits, 4GB.
 #define TCR_IPS_36           (0b001UL << 32) // 36 bits, 64GB.
 #define TCR_IPS_40           (0b010UL << 32) // 40 bits, 1TB.
@@ -242,9 +255,9 @@ void delete (void* ptr) {
 #define TCR_IPS_52           (0b110UL << 32)
 #define TCR_IPS_MASK         (0b111UL << 32)
 
-#define TCR_TGN_64KB(n)      (0b11UL << ((n * 30) + ((1 - n) * 14)))
-#define TCR_TGN_16KB(n)      (0b01UL << ((n * 30) + ((1 - n) * 14)))
-#define TCR_TGN_4KB(n)       (0b10UL << ((n * 30) + ((1 - n) * 14)))
+#define TCR_TGN_64KB(n)      (0b01UL << ((n * 30) + ((1 - n) * 14)))
+#define TCR_TGN_16KB(n)      (0b10UL << ((n * 30) + ((1 - n) * 14)))
+#define TCR_TGN_4KB(n)       (0b00UL << ((n * 30) + ((1 - n) * 14)))
 #define TCR_TGN_MASK(n)      (0b11UL << ((n * 30) + ((1 - n) * 14)))
 #define TCR_SHN_INNER(n)     (0b11UL << ((n * 28) + ((1 - n) * 12)))
 #define TCR_SHN_NOSHARE(n)   (0b00UL << ((n * 28) + ((1 - n) * 12)))
@@ -270,15 +283,16 @@ void delete (void* ptr) {
  * This bit controls whether a translation table walk is performed on a TLB
  * miss, for an address that is translated using TTBRN_EL1
  */
-#define TCR_EPDN_ALLOW_TBL_WALK(n)        (0b0UL << ((n * 23) + ((1 - n) * 7)))
+// #define TCR_EPDN_ALLOW_TBL_WALK(n)        (0b0UL << ((n * 23) + ((1 - n) * 7)))
 #define TCR_EPDN_NO_TBL_WALK(n)           (0b1UL << ((n * 23) + ((1 - n) * 7)))
 #define TCR_EPDN_MASK(n)                  (0b1UL << ((n * 23) + ((1 - n) * 7)))
 /*
  * Selects whether TTBR0_EL1 or TTBR1_EL1 defines the ASID.
+ * 0b0 = TTBR0_EL1.ASID defines the ASID.
+ * 0b1 = TTBR1_EL1.ASID defines the ASID
  */
-#define TCR_AN_TTBR0(n)                   (0b0UL << ((n * 22) + ((1 - n) * 6)))
-#define TCR_AN_TTBR1(n)                   (0b1UL << ((n * 22) + ((1 - n) * 6)))
-#define TCR_AN_MASK(n)                    (0b1UL << ((n * 22) + ((1 - n) * 6)))
+#define TCR_A1_TTBR1                      (0b1UL << 22)
+#define TCR_A1_MASK                       (0b1UL << 22)
 /*
  * The size offset of the memory region addressed by TTBRN_EL1. The region size
  * is 2^(64 - TNSZ) bytes. T1SZ = [21:16] and T0SZ = [5:0]
@@ -301,7 +315,7 @@ void delete (void* ptr) {
  */
 typedef struct tbl_desc_lvl2 {
     u64 entry_type      : 2, 
-    ignored             : (1 + 15 - 2),
+    ignored             : (1 + (MMU_GRANULE_SIZE_M - 1) - 2),
     /*
     * Bits[47:m] are bits[47:m] of the address of the required next-level table, which is:
     *   For a level 1 Table descriptor, the address of a level 2 table.
@@ -342,17 +356,18 @@ typedef struct tbl_desc_lvl2 {
  */
 typedef struct page_desc_lvl3 {
     u64 entry_type  : (1 + 1 - 0),
-    attr_idx	    : (1 + 4 - 2),	    // mair_el1
+    // Start Lower Attributes -- Bits 11 to 2 -- 10 Bits in Size
+    attr_idx	    : (1 + 4 - 2),	    // 3 bits
     /*
     * 0b1: Access granted for Secure and Non-Secure execution state.
     * 0b0: Access granted only for Secure execution state.
     */
-    ns		        : (1 + 5 - 5),	    // Non-secure bit -- set to 0
+    ns		        : (1 + 5 - 5),	    // 1 bit -- Non-secure bit -- set to 0
 #define AP_EL1_READ_WRITE   0b00UL // el1 read and write
 #define AP_ALL_READ_WRITE   0b01UL // el1 and el0 read and write
 #define AP_El1_READ_ONLY    0b10UL // el1 read only
 #define AP_ALL_READ_ONLY    0b11UL // el1 and el0 read only
-    ap		        : (1 + 7 - 6),	    // Data Access Permissions bits -- pg 2581 arm reference manual
+    ap		        : (1 + 7 - 6),	    // 2 bits --  Data Access Permissions bits -- pg 2581 arm reference manual
 /*
 * Specifies the Shareability attributes of the corresponding memory region.
 * NOTE: The shareability field is only relevant if the memory is a Normal Cacheable memory type. All Device and Normal
@@ -362,10 +377,11 @@ typedef struct page_desc_lvl3 {
 #define SH_NORMAL_MEM_NO_SHARE      0b00UL // Non-shareable
 #define SH_NORMAL_MEM_OUTER_SHARE   0b10UL // Outer Shareable
 #define SH_NORMAL_MEM_INNER_SHARE   0b11UL // Inner Shareable
-    sh		        : (1 + 9 - 8),	    // Shareability field -- pg 2600 arm reference manual
-    af		        : (1 + 10 - 10),    // The Access flag -- set to 1 pg 2590 arm reference manual
-    ng		        : (1 + 11 - 11),    // The not global bit -- set to 0
-    ta	            : (1 + 15 - 12),    // TA[51:48] indicates bits[51:48] of the page address.
+    sh		        : (1 + 9 - 8),	    // 2 bits --  Shareability field -- pg 2600 arm reference manual
+    af		        : (1 + 10 - 10),    // 1 bit -- The Access flag -- set to 1 pg 2590 arm reference manual
+    ng		        : (1 + 11 - 11),    // 1 bit -- The not global bit -- set to 0
+    // End Lower Attributes
+    ta	            : (1 + 15 - 12),    // 4 bits -- TA[51:48] indicates bits[51:48] of the page address.
     phys_addr       : (1 + 47 - MMU_GRANULE_SIZE_M),
     reserved1	    : (1 + 50 - 48),	// set to 0
     dbm             : (1 + 51 - 51),    // Dirty Bit Modifier
@@ -395,9 +411,30 @@ typedef struct page_desc_lvl3 {
 // clang-format on
 
 static void* create_translation_tbl_lvl3_ (uintptr_t addr) {
-    page_desc_lvl3* tbl =
-    (page_desc_lvl3*)calign_allocate (MEM_MID_HEAP_ID, MMU_LEVEL3_PAGE_SIZE, MMU_LEVEL3_PAGE_SIZE);
-    memset (tbl, 0, MMU_LEVEL3_PAGE_SIZE);
+    // page_desc_lvl3* tbl =
+    // (page_desc_lvl3*)calign_allocate (MEM_MID_HEAP_ID, PAGE_SIZE, PAGE_SIZE);
+
+    page_desc_lvl3* tbl = page_allocate ();
+    memset (tbl, 0, PAGE_SIZE);
+
+    // LOG_INFO ("MMU Level 3 Page Table with Addr [0x%X]", (uintptr_t)tbl);
+    /*
+     * With Granule Size 64KB addresses to level 3 tables have
+     * 1 + 47 - 16 = 32 bits to represent a physical address to their table.
+     * 1111 1111 1111 1111 1111 1111 1111 1111 0000 0000 0000 0000
+     */
+    if (tbl == NULLPTR) {
+        LOG_ERROR ("MMU Failed to allocate level 3 Page Table");
+        return NULLPTR;
+    }
+    if ((((uintptr_t)tbl) & ~0xFFFFFFFF0000UL) > 0) {
+        LOG_ERROR ("MMU Level 3 Page table address is NOT aligned: [0x%X]", (uintptr_t)tbl);
+        return NULLPTR;
+    }
+    if (sizeof (page_desc_lvl3) != 8) {
+        LOG_ERROR ("MMU Level 3 Page Descriptor Struct is not 64 bits. [%u]", sizeof (page_desc_lvl3));
+        return NULLPTR;
+    }
 
     for (uintptr_t entry_idx = 0; entry_idx < MMU_LEVEL3_ENTRIES; ++entry_idx) {
         page_desc_lvl3* desc = &(tbl[entry_idx]);
@@ -409,17 +446,19 @@ static void* create_translation_tbl_lvl3_ (uintptr_t addr) {
         desc->af             = 1;
         desc->ng             = 0;
         desc->ta             = 0;
-        desc->phys_addr      = LEVEL3_PHYS_ADDR (addr);
-        desc->dbm            = 0;
-        desc->contiguous     = 0;
-        desc->pxn            = PXN_EL1_EXECUTION_ALLOWED;
-        desc->uxn            = UXN_EL0_NO_EXECUTION;
-
+        if ((addr & ~0xFFFFFFFF0000UL) > 0) {
+            LOG_ERROR ("MMU Level 3 Page entry Physical address is NOT aligned: [0x%X]", addr);
+        }
+        desc->phys_addr  = LEVEL3_PHYS_ADDR (addr);
+        desc->dbm        = 0;
+        desc->contiguous = 0;
+        desc->pxn        = PXN_EL1_EXECUTION_ALLOWED;
+        desc->uxn        = UXN_EL0_NO_EXECUTION;
         /*
          * The only memory section that will be executable ranges from 0x0
          * to kernel_start + kernel_text_size
          */
-        if (addr > KERNEL_TEXT_END_ADDR) {
+        if (addr > KERNEL_END_ADDR) {
             desc->pxn = PXN_EL1_NO_EXECUTION;
 
             if (addr >= VC_DRAM_MEM_START && addr <= VC_DRAM_MEM_END) {
@@ -430,56 +469,119 @@ static void* create_translation_tbl_lvl3_ (uintptr_t addr) {
                 desc->sh       = SH_NORMAL_MEM_OUTER_SHARE;
             }
         }
-        addr += MMU_LEVEL3_PAGE_SIZE;
+        addr += PAGE_SIZE;
     }
     return (void*)tbl;
 }
 
 static void* translation_tbl_init_ (void) {
     uintptr_t addr = 0x0;
-    tbl_desc_lvl2* table_ptr =
-    (tbl_desc_lvl2*)calign_allocate (MEM_MID_HEAP_ID, MMU_LEVEL2_PAGE_SIZE, MMU_LEVEL2_PAGE_SIZE);
-    memset (table_ptr, 0, MMU_LEVEL2_PAGE_SIZE);
+    // tbl_desc_lvl2* table_ptr =
+    // (tbl_desc_lvl2*)calign_allocate (MEM_MID_HEAP_ID, PAGE_SIZE, PAGE_SIZE);
 
+    tbl_desc_lvl2* table_ptr = page_allocate ();
+    memset (table_ptr, 0, PAGE_SIZE);
+
+    if (table_ptr == NULLPTR) {
+        LOG_ERROR ("MMU Failed to allocate level 2 Table");
+    }
+
+    if ((((uintptr_t)table_ptr) & ~0xFFFFFFFF0000UL) > 0) {
+        LOG_ERROR ("MMU Level 2 Table address is NOT aligned: [0x%X]", (uintptr_t)table_ptr);
+        return NULLPTR;
+    }
+
+    if (sizeof (tbl_desc_lvl2) != 8) {
+        LOG_ERROR ("MMU Level 2 Table Descriptor Struct is not 64 bits. [%u]", sizeof (tbl_desc_lvl2));
+    }
+
+    LOG_DEBUG ("MMU Level 2 Table Address [0x%X]", (uintptr_t)table_ptr);
     for (uintptr_t entry_idx = 0; entry_idx < MMU_LEVEL2_ENTRIES; ++entry_idx) {
-        addr         = entry_idx * MMU_LEVEL3_ENTRIES * MMU_LEVEL3_PAGE_SIZE;
+        addr = entry_idx * MMU_LEVEL3_ENTRIES * PAGE_SIZE;
+        // u32 h = (addr >> 32);
+        // u32 l = (addr & 0xFFFFFFFF);
+        // LOG_INFO ("MMU Physical Address [0x%x%x]", h, l);
+
+        /*
+         * Leave entries greater than 4GB as invalid entries
+         */
+        if (addr > (4UL * 0x40000000UL)) {
+            continue;
+        }
+
         void* subtbl = create_translation_tbl_lvl3_ (addr);
+        if (subtbl == NULLPTR) {
+            LOG_ERROR ("MMU Failed to create Lvl 3 Table");
+        }
+
+        /*
+         * What could be wrong?
+         *   1. Level 3 Page Tables addresses are not allow correctly
+         *   2. A setting somewhere is incorrect
+         *   3. The address translation process is messed up somewhere?
+         *       a. If a setting was incorrect then I an exception handler should be called?
+         *           1. Since no exception handler is called it must mean that the addresses
+         *               are being translated incorrectly
+         * How can I debug it?
+         *   1. I can't see the address translation process.
+         *   2. Can I enable errors so an exception handler gets called?
+         *       a. But how will my exception handler work with incorrect addresses
+         */
 
         tbl_desc_lvl2* desc = &(table_ptr[entry_idx]);
-        desc->entry_type    = 0x3; // table descriptor
-        desc->tbl_addr      = LEVEL2_TBL_ADDR ((uintptr_t)subtbl);
+        desc->entry_type    = 3; // table descriptor
+        desc->tbl_addr      = LEVEL2_TBL_ADDR (subtbl);
         desc->pxn_tbl       = 0;
         desc->xn_tbl        = 0;
         desc->ap_tbl        = 0;
         desc->ns_tbl        = 0;
     }
-
+    LOG_INFO ("MMU Finished Creating Page Tables");
+    DATA_SYNC_BARRIER_FS_ANY ();
     return (void*)table_ptr;
 }
 
-static void enable_mmu_ (void) {
+void enable_mmu (void) {
     void* tran_tbl = translation_tbl_init_ ();
 
-    u64 mair = MAIR_DEVICE << MAIR_DEVICE_IDX * 8;
-    mair |= MAIR_DEVICE_COHERENT << MAIR_DEVICE_COHERENT_IDX * 8;
-    mair |= MAIR_NORMAL << MAIR_NORMAL_IDX * 8;
-    mair |= MAIR_NORMAL_NO_CACHE << MAIR_NORMAL_NO_CACHE_IDX * 8;
-    asm volatile("msr mair_el1, %0" : : "r"(mair));
+    u64 mair = MAIR_DEVICE << (MAIR_DEVICE_IDX * 8);
+    mair |= MAIR_DEVICE_COHERENT << (MAIR_DEVICE_COHERENT_IDX * 8);
+    mair |= MAIR_NORMAL << (MAIR_NORMAL_IDX * 8);
+    mair |= MAIR_NORMAL_NO_CACHE << (MAIR_NORMAL_NO_CACHE_IDX * 8);
+    asm volatile("msr mair_el1, %0" ::"r"(mair));
 
-    asm volatile("msr ttbr0_el1, %0" : : "r"((uintptr_t)tran_tbl));
+    LOG_INFO ("MMU Setup MAIR Register [0x%X%X]", (mair >> 32), mair);
+
+    asm volatile("msr ttbr0_el1, %0" ::"r"((uintptr_t)tran_tbl));
+
+    LOG_INFO ("MMU Setup ttbr0_el1 Register");
+
+    asm volatile("tlbi vmalle1");
+    DATA_SYNC_BARRIER_FS_ANY ();
+    ISB ();
 
     u64 tcr;
     asm volatile("mrs %0, tcr_el1" : "=r"(tcr));
-    tcr &= ~TCR_MASK (0);
-    tcr |= TCR_EPDN_ALLOW_TBL_WALK (0);
-    tcr |= TCR_EPDN_NO_TBL_WALK (1); // disable tbl walks for ttbr1_el1 addresses (0xFFFFF....)
+    tcr &= ~TCR_IPS_MASK;
+    tcr &= ~TCR_TGN_MASK (0);
+    tcr &= ~TCR_SHN_MASK (0);
+    tcr &= ~TCR_ORGNN_MASK (0);
+    tcr &= ~TCR_IRGNN_MASK (0);
+    tcr &= ~TCR_EPDN_MASK (0);
+    tcr &= ~TCR_A1_MASK;
+    tcr &= ~TCR_TNSZ_MASK (0);
+
+    // tcr |= TCR_EPDN_NO_TBL_WALK (0);
+    tcr |= TCR_EPDN_NO_TBL_WALK (1); // disable tbl walks for ttbr1_el1 addresses (u64 starting with 0xFFFFF....)
     tcr |= TCR_TGN_64KB (0);
     tcr |= TCR_SHN_INNER (0);
     tcr |= TCR_ORGNN_NORMAL_OUTER_WB_CACHE (0);
     tcr |= TCR_IRGNN_NORMAL_INNER_WB_CACHE (0);
     tcr |= TCR_IPS_36;
     tcr |= TCR_TNSZ_64GB (0);
-    asm volatile("msr tcr_el1, %0" : : "r"(tcr));
+    asm volatile("msr tcr_el1, %0" ::"r"(tcr));
+
+    LOG_INFO ("MMU Setup tcr Register [0x%X%X]", (tcr >> 32), tcr);
 
     // Force changes to be seen before MMU is enabled
     ISB ();
@@ -491,9 +593,18 @@ static void enable_mmu_ (void) {
     sctlr |= SCTLR_D_CACHE_ENABLED;
     sctlr |= SCTLR_MMU_ENABLED;
 
-    asm volatile("msr sctlr_el1, %0" : : "r"(sctlr));
+    LOG_INFO ("MMU About to Enable");
+
+    asm volatile("msr sctlr_el1, %0" ::"r"(sctlr));
+
+    // u64 par;
+    // asm volatile("AT S12E1R, %0" ::"r"(0x80000));
+    // asm volatile("mrs %0, par_el1" : "=r"(par));
+    // LOG_INFO ("[%u]", par);
 
     ISB ();
+
+    LOG_INFO ("MMU Setup Complete");
 }
 
 s32 mem_init (heap_s* hp) {
