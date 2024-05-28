@@ -1,5 +1,6 @@
 #include "peripherals/vpu.h"
 #include "printf.h"
+#include "sync.h"
 
 #define VPU_BASE        (PBASE + 0x200B880)
 #define VPU_MBOX_READ   (VPU_BASE + 0x0)
@@ -52,6 +53,8 @@ s32 vpu_call (u32 (*buffer_ptr)[VPU_CMD_BUFFER_SIZE], u8 channel) {
     // Write the address of our buffer
     // to the mailbox with the channel appended
     write32 (VPU_MBOX_WRITE, buff_addr_w_channel);
+    DATA_SYNC_BARRIER_FS_ANY ();
+
     while (1) {
         while (VPU_IS_MBOX_EMPTY) {
         }

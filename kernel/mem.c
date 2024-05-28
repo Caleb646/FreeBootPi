@@ -445,11 +445,14 @@ static void* create_translation_tbl_lvl3_ (uintptr_t addr) {
         desc->entry_type     = 3;
         desc->attr_idx       = MAIR_NORMAL_IDX;
         desc->ns             = 0;
-        desc->ap             = AP_EL1_READ_WRITE; // AP_ALL_READ_WRITE;
-        desc->sh             = SH_NORMAL_MEM_INNER_SHARE;
-        desc->af             = 1;
-        desc->ng             = 0;
-        desc->ta             = 0;
+        /*
+         * Using ALL_READ_WRITE causes the Pi to hang when the MMU is enabled
+         */
+        desc->ap = AP_EL1_READ_WRITE; // AP_ALL_READ_WRITE;
+        desc->sh = SH_NORMAL_MEM_INNER_SHARE;
+        desc->af = 1;
+        desc->ng = 0;
+        desc->ta = 0;
         if ((addr & ~0xFFFFFFFF0000UL) > 0) {
             LOG_ERROR ("MMU Level 3 Page entry Physical address is NOT aligned: [0x%X]", addr);
         }
@@ -576,7 +579,6 @@ void enable_mmu (void) {
     tcr &= ~TCR_A1_MASK;
     tcr &= ~TCR_TNSZ_MASK (0);
 
-    // tcr |= TCR_EPDN_NO_TBL_WALK (0);
     tcr |= TCR_EPDN_NO_TBL_WALK (1); // disable tbl walks for ttbr1_el1 addresses (u64 starting with 0xFFFFF....)
     tcr |= TCR_TGN_64KB (0);
     tcr |= TCR_SHN_INNER (0);
@@ -599,29 +601,12 @@ void enable_mmu (void) {
     sctlr |= SCTLR_MMU_ENABLED;
 
     LOG_INFO ("MMU About to Enable");
-
-    while (1) {
-        if (REG_PTR32 (AUX_MU_LSR_REG) & 0x20) {
-            break;
-        }
-    }
-
     asm volatile("msr sctlr_el1, %0" ::"r"(sctlr));
-
-    // If I don't use the stack can I send data via the UART after
-    // enabling the MMU?
-    // for (u32 i = 0; i < 10; ++i) {
-    REG_PTR32 (AUX_MU_IO_REG) = "H";
-    //}
-
-
     // u64 par;
     // asm volatile("AT S12E1R, %0" ::"r"(0x80000));
     // asm volatile("mrs %0, par_el1" : "=r"(par));
     // LOG_INFO ("[%u]", par);
-
     ISB ();
-
     LOG_INFO ("MMU Setup Complete");
 }
 

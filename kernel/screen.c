@@ -93,7 +93,7 @@ void screen_init (void) {
 
 void screen_draw_pixel (u32 x, u32 y, u32 pixel_color) {
     if (frame_buffer_ == NULLPTR) {
-        LOG_ERROR ("Failed to draw pixel because FB is invalid");
+        // LOG_ERROR ("Failed to draw pixel because FB is invalid");
         return;
     }
     u32 offset = (y * bytes_per_line) + (x * sizeof (u32));
@@ -140,6 +140,11 @@ void screen_draw_string (u32 x, u32 y, u32 color, char* str) {
 void screen_update (void) {
     DATA_MEMORY_BARRIER_OUTER_STORES ();
     // memcopy (frame_buffer_, fb_size, vpu_frame_buffer_);
+    if (frame_buffer_ == NULLPTR || vpu_frame_buffer_ == NULLPTR) {
+        LOG_ERROR (
+        "Screen can NOT update frame buffer or vpu framer buffer is NULL");
+        return;
+    }
     dma_status_t status =
     dma_memcpy ((uintptr_t)frame_buffer_, (uintptr_t)vpu_frame_buffer_, fb_size, DMA_STANDARD);
     if (status != DMA_OK) {

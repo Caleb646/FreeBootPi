@@ -223,8 +223,6 @@ el1_entry: //
 	bl kernel_main
 	b err_hang
 
-
-
 /*
  * Exception vectors.
  */

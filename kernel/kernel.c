@@ -29,8 +29,6 @@ void show_invalid_entry_message (s32 type, u32 esr, u32 address) {
 }
 
 void kernel_main (void) {
-    // ENABLE_FIQ ();
-    // ENABLE_IRQ ();
     init_printf (0, putc);
     LOG_DEBUG ("Exception Level: [0x%X]", get_arm_exception_lvl ());
 
