@@ -29,16 +29,25 @@ void show_invalid_entry_message (s32 type, u32 esr, u32 address) {
 }
 
 void kernel_main (void) {
-    // Cache should be invalidated on reset and startup.
-    // L1 cache for secondary cores should be as well.
-    cache_invalidate ();
-
+    // ENABLE_FIQ ();
+    // ENABLE_IRQ ();
     init_printf (0, putc);
     LOG_DEBUG ("Exception Level: [0x%X]", get_arm_exception_lvl ());
+
     irq_init ();
     timer_init (VC_GIC_SYSTEM_TIMER_IRQ_3);
-    mem_init (NULLPTR);
 
+    // Data Cache should be invalidated on reset and startup.
+    // L1 cache for secondary cores should be as well.
+    cache_invalidate ();
+    // Invalidate instruction cache
+    asm volatile("ic IALLUIS");
+    // Invalidate TLB entries
+    asm volatile("tlbi vmalle1");
+    DATA_SYNC_BARRIER_FS_ANY ();
+    ISB ();
+
+    mem_init (NULLPTR);
     enable_mmu ();
 
     dma_init (NULLPTR);

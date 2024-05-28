@@ -196,8 +196,8 @@ _start: //
 	// Disable MMU for EL1 & EL0
 	// ldr	x0, =SCTLR_EL1_VALUE
 	// msr	sctlr_el1, x0
-	mov	x0, #0x0800
-	movk	x0, #0x30d0, lsl #16
+	mov	 x0, #0x0800 // bit 11
+	movk x0, #0x30D0, lsl #16 // bits 20, 22, 23, 28, 29
 	msr	sctlr_el1, x0
 
 	// Disable (Mask) DAIF Interrupts

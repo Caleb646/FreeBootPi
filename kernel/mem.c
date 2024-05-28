@@ -5,6 +5,7 @@ extern u8 mid_heap[TEST_HEAP_SIZE];
 extern u8 high_heap[TEST_HEAP_SIZE];
 #else
 #include "arm/sysregs.h"
+#include "peripherals/uart.h"
 #include "printf.h"
 #include "sync.h"
 #endif
@@ -349,7 +350,7 @@ typedef struct tbl_desc_lvl2 {
     xn_tbl              : (1 + 60 - 60), // XN limit for subsequent levels of lookup
     ap_tbl              : (1 + 62 - 61), // Access permissions limit for subsequent levels of lookup -- pg 2583 arm reference manual
     ns_tbl              : (1 + 63 - 63); // For memory accesses from Secure state, specifies the Security state for subsequent levels of lookup
-} tbl_desc_lvl2;
+} GCC_PACKED tbl_desc_lvl2;
 
 /*
  * pg 2569 of arm reference manual
@@ -407,7 +408,7 @@ typedef struct page_desc_lvl3 {
     uxn		        : (1 + 54 - 54),
     ignored0		: 9;	            // set to 0
 
-} page_desc_lvl3;
+} GCC_PACKED page_desc_lvl3;
 // clang-format on
 
 static void* create_translation_tbl_lvl3_ (uintptr_t addr) {
@@ -435,13 +436,16 @@ static void* create_translation_tbl_lvl3_ (uintptr_t addr) {
         LOG_ERROR ("MMU Level 3 Page Descriptor Struct is not 64 bits. [%u]", sizeof (page_desc_lvl3));
         return NULLPTR;
     }
+    if (sizeof (page_desc_lvl3) * MMU_LEVEL3_ENTRIES != PAGE_SIZE) {
+        LOG_ERROR ("MMU Level 3 Table is incorrect size");
+    }
 
     for (uintptr_t entry_idx = 0; entry_idx < MMU_LEVEL3_ENTRIES; ++entry_idx) {
         page_desc_lvl3* desc = &(tbl[entry_idx]);
         desc->entry_type     = 3;
         desc->attr_idx       = MAIR_NORMAL_IDX;
         desc->ns             = 0;
-        desc->ap             = AP_ALL_READ_WRITE;
+        desc->ap             = AP_EL1_READ_WRITE; // AP_ALL_READ_WRITE;
         desc->sh             = SH_NORMAL_MEM_INNER_SHARE;
         desc->af             = 1;
         desc->ng             = 0;
@@ -516,10 +520,15 @@ static void* translation_tbl_init_ (void) {
 
         /*
          * What could be wrong?
-         *   1. Level 3 Page Tables addresses are not allow correctly
-         *   2. A setting somewhere is incorrect
-         *   3. The address translation process is messed up somewhere?
-         *       a. If a setting was incorrect then I an exception handler should be called?
+         *   1. Level 2/3 Page Table(s) addresses are not aligned correctly
+         *      a. I don't think so because a page fault should be generated and an exception handler
+         *          should be called.
+         *          aa. But if the mmu is enabled and configured incorrectly the proper handler may never
+         *              be called but some other random memory location.
+         *  2. Is an instruction being trapped to EL2 and the EL2 exception handler is misconfigured?
+         *      a.
+         *  3. The address translation process is messed up somewhere?
+         *       a. If a setting was incorrect then an exception handler should be called?
          *           1. Since no exception handler is called it must mean that the addresses
          *               are being translated incorrectly
          * How can I debug it?
@@ -556,10 +565,6 @@ void enable_mmu (void) {
 
     LOG_INFO ("MMU Setup ttbr0_el1 Register");
 
-    asm volatile("tlbi vmalle1");
-    DATA_SYNC_BARRIER_FS_ANY ();
-    ISB ();
-
     u64 tcr;
     asm volatile("mrs %0, tcr_el1" : "=r"(tcr));
     tcr &= ~TCR_IPS_MASK;
@@ -595,7 +600,20 @@ void enable_mmu (void) {
 
     LOG_INFO ("MMU About to Enable");
 
+    while (1) {
+        if (REG_PTR32 (AUX_MU_LSR_REG) & 0x20) {
+            break;
+        }
+    }
+
     asm volatile("msr sctlr_el1, %0" ::"r"(sctlr));
+
+    // If I don't use the stack can I send data via the UART after
+    // enabling the MMU?
+    // for (u32 i = 0; i < 10; ++i) {
+    REG_PTR32 (AUX_MU_IO_REG) = "H";
+    //}
+
 
     // u64 par;
     // asm volatile("AT S12E1R, %0" ::"r"(0x80000));

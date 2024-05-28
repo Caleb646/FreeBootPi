@@ -96,7 +96,7 @@ ARMGNU ?= ../arm_toolchain/bin/aarch64-none-elf
 COPS = -Wall -nostdlib -nostartfiles -ffreestanding -I../include -mgeneral-regs-only
 ASMOPS = -I../include 
 
-BUILD_DIR = ../build/loader
+BUILD_DIR = ../build/kernel
 OUTDIR = ../out
 SRC_DIR = ""
 SRC_DIR += peripherals
@@ -115,9 +115,19 @@ ASM_FILES =$(wildcard *.S $(foreach fd, $(SRC_DIR), $(fd)/*.S))
 # files so that make knows what exactly to recompile in case a header changes.
 #
 # This is a target for all of the C .o files followed by the recipe
+
+# $@ == ../build/kernel/peripherals/vpu_c.o
+# $< == peripherals/vpu.c
+# $(@D) == ../build/kernel/peripherals
+# $(@F) == uart_c.o
 $(BUILD_DIR)/%_c.o: %.c
 	mkdir -p $(@D)
 	$(ARMGNU)-gcc $(COPS) -MMD -c $< -o $@
+	$(ARMGNU)-gcc $(COPS) -MMD -c -S $< -o $(@D)/$(@F).S
+# $(info $$DDDDDDDDDDDDDDDDD = $@)
+# $(info $$DDDDDDDDDDDDDDDDD = $<)
+# $(info $$DDDDDDDDDDDDDDDDD = $(@D))
+# $(info $$DDDDDDDDDDDDDDDDD = $(@F))
 
 # This is a target for all of the Assembly .S files followed by the recipe
 $(BUILD_DIR)/%_s.o: %.S

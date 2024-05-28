@@ -42,6 +42,7 @@ extern u32 __kernel_end;
 #define GCC_NODISCARD        __attribute__ ((__warn_unused_result__))
 #define GCC_ALIGN_ADDR(byte_alignment) \
     __attribute__ ((aligned (byte_alignment)))
+#define GCC_PACKED                __attribute__ ((packed))
 
 /*
  * A mask of 0x3FFF_FFFF (~0xC000_0000) is used to convert a VPU Bus address to an ARM physical address.

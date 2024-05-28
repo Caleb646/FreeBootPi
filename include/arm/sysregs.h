@@ -58,36 +58,44 @@
 #define SCTLR_ALIGNMENT                  (1 << 1)
 // MMU enable for (if using sctlr_el1) EL1&0 stage 1 address translation.
 #define SCTLR_MMU_ENABLED                (1 << 0)
-#define SCTLR_EL1_VALUE                                                         \
-    (                                                                           \
-    SCTLR_RESERVED | SCTLR_I_CACHE_ENABLED | SCTLR_EL1_SP_ALIGNMENT_CHECK_EL0 | \
-    SCTLR_EL1_SP_ALIGNMENT_CHECK_EL1 | SCTLR_D_CACHE_ENABLED)
+/* #define SCTLR_EL1_VALUE \
+//     ( \
+//     SCTLR_RESERVED | SCTLR_I_CACHE_ENABLED | SCTLR_EL1_SP_ALIGNMENT_CHECK_EL0
+| \ SCTLR_EL1_SP_ALIGNMENT_CHECK_EL1 | SCTLR_D_CACHE_ENABLED) */
 
 // ***************************************
 // HCR_EL2, Hypervisor Configuration Register (EL2), Page 2487 of AArch64-Reference-Manual.
 // ***************************************
-#define HCR_RW         (1 << 31)
+#define HCR_RW                           (1 << 31)
 // Execution state must be AArch64 and not AArch32
-#define HCR_EL2_VALUE  HCR_RW
+#define HCR_EL2_VALUE                    HCR_RW
 
 // ***************************************
 // SCR_EL3, Secure Configuration Register (EL3), Page 2648 of AArch64-Reference-Manual.
 // ***************************************
-#define SCR_RESERVED   (3 << 4)
-#define SCR_RW         (1 << 10)
-#define SCR_NS         (1 << 0)
+#define SCR_RESERVED                     (3 << 4)
+#define SCR_RW                           (1 << 10)
+#define SCR_NS                           (1 << 0)
 // Set that EL2 will execute at AArch64 state, and all lower exception levels will be "non secure".
-#define SCR_VALUE      (SCR_RESERVED | SCR_RW | SCR_NS)
+#define SCR_VALUE                        (SCR_RESERVED | SCR_RW | SCR_NS)
 
 // ***************************************
 // SPSR_ELn, Saved Program Status Register (EL3) Page 389 of AArch64-Reference-Manual.
 // https://developer.arm.com/documentation/ddi0601/2024-03/AArch64-Registers/SPSR-EL2--Saved-Program-Status-Register--EL2-?lang=en
 // ***************************************
 // After changing EL to EL1 all types of interrupts will be masked (or disabled, which is the same).
-#define SPSR_DAIF      (1 << 9) | (1 << 8) | (1 << 7) | (1 << 6)
+#define SPSR_DAIF                        (1 << 9) | (1 << 8) | (1 << 7) | (1 << 6)
 // At EL1 we can either use our own dedicated stack pointer or use EL0 stack
 // pointer. EL1h mode means that we are using EL1 dedicated stack pointer.
-#define SPSR_EL1h      0b0101 // EL1 with SP_EL1 (EL1h).
-#define SPSR_EL2_VALUE (SPSR_DAIF | SPSR_EL1h)
+/*
+ * 0b0000	EL0.
+ * 0b0100	EL1 with SP_EL0 (EL1t).
+ * 0b0101	EL1 with SP_EL1 (EL1h).
+ * 0b1000	EL2 with SP_EL0 (EL2t).
+ * 0b1001	EL2 with SP_EL2 (EL2h).
+ */
+#define SPSR_EL1h                        0b0101 // EL1 with SP_EL1 (EL1h).
+#define SPSR_EL1t                        0b0100
+#define SPSR_EL2_VALUE                   (SPSR_DAIF | SPSR_EL1h)
 
 #endif
