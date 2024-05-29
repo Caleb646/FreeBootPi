@@ -50,14 +50,12 @@ s32 vpu_call (u32 (*buffer_ptr)[VPU_CMD_BUFFER_SIZE], u8 channel) {
     // Wait until we can write
     while (VPU_IS_MBOX_FULL) {
     }
-    // Pause execution until the writes to the cmd buffer are
-    // visible to VPU
-    DATA_SYNC_BARRIER_FS_STORES ();
+    // Clean and Invalidate the cmd buffer from the cache
+    clean_invalidate_data_cache_vaddr ((uintptr_t)cmd_buffer_, sizeof (cmd_buffer_));
     // Write the address of our buffer
     // to the mailbox with the channel appended
     write32 (VPU_MBOX_WRITE, buff_addr_w_channel);
-    DATA_SYNC_BARRIER_FS_ANY ();
-
+    // DATA_SYNC_BARRIER_FS_ANY ();
     while (1) {
         while (VPU_IS_MBOX_EMPTY) {
         }

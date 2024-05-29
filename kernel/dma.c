@@ -331,6 +331,8 @@ dma_transfer (anonymous_cb_t cbs[DMA_MAX_CBS_PER_CHANNEL], u32 ncbs, u32 channel
     }
     // cb addrs are not 64 bits but this makes the compiler happy
     u64 control_block_addr = (u64)(&(allocated_channel_cbs[channel_id]));
+    clean_data_cache_vaddr (control_block_addr, sizeof (anonymous_cb_t) * DMA_MAX_CBS_PER_CHANNEL);
+
     if (dma_type == DMA4) {
         // TODO: dma4 has two seperate registers for the low and high part of
         // of the address.

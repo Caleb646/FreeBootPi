@@ -31,6 +31,10 @@ void cache_clean (void);
 void cache_invalidate (void);
 void cache_clean_invalidate (void);
 
+void clean_data_cache_vaddr (uintptr_t vaddr, u64 size);
+void invalidate_data_cache_vaddr (uintptr_t vaddr, u64 size);
+void clean_invalidate_data_cache_vaddr (uintptr_t vaddr, u64 size);
+
 s32 enter_critical (u32 target_lvl);
 s32 leave_critical (void);
 

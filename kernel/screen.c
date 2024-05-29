@@ -145,6 +145,7 @@ void screen_update (void) {
         "Screen can NOT update frame buffer or vpu framer buffer is NULL");
         return;
     }
+    clean_invalidate_data_cache_vaddr ((uintptr_t)frame_buffer_, fb_size);
     dma_status_t status =
     dma_memcpy ((uintptr_t)frame_buffer_, (uintptr_t)vpu_frame_buffer_, fb_size, DMA_STANDARD);
     if (status != DMA_OK) {
