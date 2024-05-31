@@ -2,7 +2,6 @@
 #include "irq.h"
 #include "mem.h"
 #include "peripherals/timer.h"
-#include "printf.h"
 #include "sync.h"
 
 #define DMA_BASE              (PERIPH_BASE + 0x2007000)

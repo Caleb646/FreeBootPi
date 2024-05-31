@@ -2,7 +2,6 @@
 #include "dma.h"
 #include "mem.h"
 #include "peripherals/vpu.h"
-#include "printf.h"
 #include "sync.h"
 
 static u8* volatile vpu_frame_buffer_ = NULLPTR;

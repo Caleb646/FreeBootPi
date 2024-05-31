@@ -1,5 +1,4 @@
 #include "irq.h"
-#include "printf.h"
 
 static irq_handler_t volatile gic_irq_handlers[ARM_NUM_CORES][GIC_NUM_INTERRUPTS];
 
@@ -39,9 +38,10 @@ void gic_assign_target (u32 irq_id, u32 cpu_id) {
     // Page 598 of Arm Generic Interrupt Controller Spec
     u32 offsets[4] = { 0, 8, 16, 24 };
     if (bit_offset > 3) {
-        LOG_ERROR ("Failed to Assign Target: [%u] to CPU [%u] because of "
-                   "invalid bit offset [%u]",
-                   irq_id, cpu_id, bit_offset);
+        LOG_ERROR (
+        "Failed to Assign Target: [%u] to CPU [%u] because of "
+        "invalid bit offset [%u]",
+        irq_id, cpu_id, bit_offset);
         return;
     }
     u64 reg = GICD_ITARGETSRn (int_reg_id);
@@ -75,8 +75,7 @@ void gic_enable_interrupt (u32 irq, irq_handler_t handler) {
 }
 
 void gic_general_irq_handler (u32 irq_id) {
-    LOG_DEBUG ("Interrupt [%u] for core [%u] does NOT have a handler", irq_id,
-               get_arm_core_id ());
+    LOG_DEBUG ("Interrupt [%u] for core [%u] does NOT have a handler", irq_id, get_arm_core_id ());
 }
 
 s32 gic_init (void) {
@@ -99,11 +98,11 @@ s32 gic_init (void) {
          * for 4 interrupt types. Allowing for 8 bits per interrupt type.
          */
         for (u32 n = 0; n < GIC_NUM_INTERRUPTS / 4; ++n) {
-            write32 (GICD_IPRIORITYRn (n),
-                     (GICD_IPRIORITY_DEFAULT_PRIORITY << 0) |
-                     (GICD_IPRIORITY_DEFAULT_PRIORITY << 8) |
-                     (GICD_IPRIORITY_DEFAULT_PRIORITY << 16) |
-                     (GICD_IPRIORITY_DEFAULT_PRIORITY << 24));
+            write32 (
+            GICD_IPRIORITYRn (n), (GICD_IPRIORITY_DEFAULT_PRIORITY << 0) |
+                                  (GICD_IPRIORITY_DEFAULT_PRIORITY << 8) |
+                                  (GICD_IPRIORITY_DEFAULT_PRIORITY << 16) |
+                                  (GICD_IPRIORITY_DEFAULT_PRIORITY << 24));
             write32 (GICD_ITARGETSRn (n), 0x0);
         }
         /*

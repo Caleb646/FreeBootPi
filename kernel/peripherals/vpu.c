@@ -1,5 +1,4 @@
 #include "peripherals/vpu.h"
-#include "printf.h"
 #include "sync.h"
 
 #define VPU_BASE        (PERIPH_BASE + 0x200B880)

@@ -6,7 +6,6 @@
 #include "mem.h"
 #include "peripherals/timer.h"
 #include "peripherals/uart.h"
-#include "printf.h"
 #include "screen.h"
 #include "sync.h"
 

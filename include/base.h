@@ -123,10 +123,15 @@ void tfp_format (void* putp, void (*putf) (void*, char), char* fmt, va_list va);
         printf ("\r\n");        \
     } while (0)
 
-void assertion_failed (const char* msg, const char* fname, unsigned int line_number);
+void assertion_failed (char const* fname, unsigned int line_num, char* fmt, ...);
 
 #define STATIC_ASSERT(expr) _Static_assert(expr)
-#define ASSERT(expr, msg)
+#define ASSERT(expr, ...)                                       \
+    do {                                                        \
+        if (!expr) {                                            \
+            assertion_failed (__FILE__, __LINE__, __VA_ARGS__); \
+        }                                                       \
+    } while (0)
 
 typedef signed char s8;
 typedef unsigned char u8;
@@ -194,7 +199,11 @@ u32 read32 (u64 addr);
 u64 get_arm_core_id (void);
 u64 get_arm_exception_lvl (void);
 void memset (void* src, u8 value, size_t nbytes);
-void memcpy (void* src, size_t nbytes, void* dest);
+void memcpy (void const* src, size_t nbytes, void* dest);
+
+size_t strlen (char const* str);
+void strcpy (char const* src, char* dest);
+void strcat (char const* src, char* dest);
 
 /*
 ********* Cache ***********************

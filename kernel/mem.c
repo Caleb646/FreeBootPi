@@ -6,7 +6,6 @@ extern u8 high_heap[TEST_HEAP_SIZE];
 #else
 #include "arm/sysregs.h"
 #include "peripherals/uart.h"
-#include "printf.h"
 #include "sync.h"
 #endif
 

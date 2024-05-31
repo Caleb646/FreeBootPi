@@ -247,9 +247,9 @@ void memset (void* src, u8 value, size_t nbytes) {
     }
 }
 
-void memcpy (void* src, size_t nbytes, void* dest) {
-    u8* src_ptr  = (u8*)src;
-    u8* dest_ptr = (u8*)dest;
+void memcpy (void const* src, size_t nbytes, void* dest) {
+    u8 const* src_ptr = (u8 const*)src;
+    u8* dest_ptr      = (u8*)dest;
     while (nbytes-- > 0) {
         *dest_ptr++ = *src_ptr++;
     }
@@ -271,12 +271,33 @@ void strcpy (char const* src, char* dest) {
 void strcat (char const* src, char* dest) {
     size_t dest_len = strlen (dest);
     size_t src_len  = strlen (src);
-    memcpy (src, src_len, (dest + dest_len));
+    memcpy ((void const*)src, src_len, (dest + dest_len));
     dest[dest_len + src_len] = '\0';
 }
 
+static char assert_buffer_[2048] = { '\0' };
 
-static char assert_buffer_[1024] = { '\0' };
-void assertion_failed (const char* msg, const char* fname, unsigned int line_num) {
-    // LOG
+void assertion_failed (char const* fname, unsigned int line_num, char* fmt, ...) {
+    memset (assert_buffer_, '\0', sizeof (assert_buffer_));
+    char str[] = "[ASSERT FAILED] -- FNAME ";
+    strcat (str, assert_buffer_);
+    strcat (fname, assert_buffer_);
+
+    char line_buf[32] = { '\0' };
+    memset (line_buf, '\0', sizeof (assert_buffer_));
+    sprintf (line_buf, "LINE [%u]", line_num);
+    strcat (line_buf, assert_buffer_);
+
+    char msg_buf[1024] = { '\0' };
+    memset (msg_buf, '\0', sizeof (assert_buffer_));
+    va_list va;
+    va_start (va, fmt);
+    tfp_format (&msg_buf, putcp, fmt, va);
+    putcp (&msg_buf, 0);
+    va_end (va);
+    strcat (msg_buf, assert_buffer_);
+
+    // Report the error and then hang here
+    while (1) {
+    };
 }
