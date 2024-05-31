@@ -4,9 +4,9 @@
 #include "base.h"
 
 // Physical Address with Low Peripheral mode disabled is: 0x4_7C00_0000
-// Mini UART Physical Address with Low Peripheral mode disabled is: 0x4_7E21_5000
-// Subtracting 0x4_7E21_5000 - 0x4_7C00_0000 = 0x221_5000
-#define AUX_BASE            PBASE + 0x2215000
+// Mini UART Physical Address with Low Peripheral mode disabled is:
+// 0x4_7E21_5000 Subtracting 0x4_7E21_5000 - 0x4_7C00_0000 = 0x221_5000
+#define AUX_BASE           PERIPH_BASE + 0x2215000
 #define AUX_ENABLES_REG    (AUX_BASE + 0x04)
 #define AUX_MU_IO_REG      (AUX_BASE + 0x40)
 #define AUX_MU_IER_REG     (AUX_BASE + 0x44)
@@ -20,6 +20,6 @@
 #define AUX_MU_STAT_REG    (AUX_BASE + 0x64)
 #define AUX_MU_BAUD_REG    (AUX_BASE + 0x68)
 #define AUX_UART_CLOCK     (500000000) // 500 MHz
-#define AUX_MU_BAUD(baud) ((AUX_UART_CLOCK / (baud * 8)) - 1)
+#define AUX_MU_BAUD(baud)  ((AUX_UART_CLOCK / (baud * 8)) - 1)
 
 #endif

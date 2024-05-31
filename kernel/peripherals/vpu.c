@@ -2,7 +2,7 @@
 #include "printf.h"
 #include "sync.h"
 
-#define VPU_BASE        (PBASE + 0x200B880)
+#define VPU_BASE        (PERIPH_BASE + 0x200B880)
 #define VPU_MBOX_READ   (VPU_BASE + 0x0)
 #define VPU_MBOX_POLL   (VPU_BASE + 0x10)
 #define VPU_MBOX_SENDER (VPU_BASE + 0x14)
@@ -29,7 +29,7 @@ static u32 volatile GCC_ALIGN_ADDR (16) cmd_buffer_[VPU_CMD_BUFFER_SIZE] = { 0 }
 
 // https://github.com/raspberrypi/firmware/wiki/Mailbox-property-interface
 s32 vpu_call (u32 (*buffer_ptr)[VPU_CMD_BUFFER_SIZE], u8 channel) {
-    memcopy (*buffer_ptr, sizeof (cmd_buffer_), (void*)cmd_buffer_);
+    memcpy (*buffer_ptr, sizeof (cmd_buffer_), (void*)cmd_buffer_);
     // buffer addresses are not 64 bits but this makes
     // the compiler happy.
     u64 buff_addr = (u64)cmd_buffer_;
@@ -63,7 +63,7 @@ s32 vpu_call (u32 (*buffer_ptr)[VPU_CMD_BUFFER_SIZE], u8 channel) {
             LOG_DEBUG ("Received reply from VPU: Response [%X] -- Channel ID [%u]", cmd_buffer_[1], channel);
             // response should always be at index 1
             if (VPU_IS_VALID_MBOX_RESPONSE (cmd_buffer_[1])) {
-                memcopy ((void*)cmd_buffer_, sizeof (cmd_buffer_), *buffer_ptr);
+                memcpy ((void*)cmd_buffer_, sizeof (cmd_buffer_), *buffer_ptr);
                 return 1;
             }
             return 0;

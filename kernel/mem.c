@@ -471,7 +471,7 @@ static void* create_translation_tbl_lvl3_ (uintptr_t addr) {
             if (addr >= VC_DRAM_MEM_START && addr <= VC_DRAM_MEM_END) {
                 desc->attr_idx = MAIR_NORMAL_NO_CACHE_IDX;
                 desc->sh       = SH_NORMAL_MEM_OUTER_SHARE;
-            } else if (addr >= PBASE && addr <= PERIPH_END) {
+            } else if (addr >= PERIPH_BASE && addr <= PERIPH_END) {
                 desc->attr_idx = MAIR_DEVICE_COHERENT_IDX;
                 desc->sh       = SH_NORMAL_MEM_OUTER_SHARE;
             }

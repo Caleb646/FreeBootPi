@@ -139,7 +139,7 @@ void screen_draw_string (u32 x, u32 y, u32 color, char* str) {
 
 void screen_update (void) {
     DATA_MEMORY_BARRIER_OUTER_STORES ();
-    // memcopy (frame_buffer_, fb_size, vpu_frame_buffer_);
+    // memcpy (frame_buffer_, fb_size, vpu_frame_buffer_);
     if (frame_buffer_ == NULLPTR || vpu_frame_buffer_ == NULLPTR) {
         LOG_ERROR (
         "Screen can NOT update frame buffer or vpu framer buffer is NULL");

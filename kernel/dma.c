@@ -5,7 +5,7 @@
 #include "printf.h"
 #include "sync.h"
 
-#define DMA_BASE              (PBASE + 0x2007000)
+#define DMA_BASE              (PERIPH_BASE + 0x2007000)
 #define DMA_CHANNEL_OFFSET    0x100
 /*
  * Bit 31 = Reset = Writing 1 will reset DMA. WO and will self clear
@@ -327,7 +327,7 @@ dma_transfer (anonymous_cb_t cbs[DMA_MAX_CBS_PER_CHANNEL], u32 ncbs, u32 channel
         if ((addr & 0x1F) > 0) {
             LOG_ERROR ("DMA control block is NOT 32 byte aligned");
         }
-        memcopy (&(cbs[i]), sizeof (anonymous_cb_t), &(allocated_channel_cbs[channel_id + i]));
+        memcpy (&(cbs[i]), sizeof (anonymous_cb_t), &(allocated_channel_cbs[channel_id + i]));
     }
     // cb addrs are not 64 bits but this makes the compiler happy
     u64 control_block_addr = (u64)(&(allocated_channel_cbs[channel_id]));
@@ -389,7 +389,7 @@ dma_type_t dma_type) {
         src_bus  = src_addr;
         dest_bus = dest_addr;
     }
-    // LOG_INFO ("Preparing memcopy");
+    // LOG_INFO ("Preparing memcpy");
     // LOG_INFO ("SRC Bus Address [0x%X]", src_bus);
     // LOG_INFO ("DEST Bus Address [0x%X]", dest_bus);
     memset (empty_cb, 0, sizeof (anonymous_cb_t));

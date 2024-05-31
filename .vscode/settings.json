@@ -10,7 +10,8 @@
         "base.h": "c",
         "charconv": "c",
         "source_location": "c",
-        "stacktrace": "c"
+        "stacktrace": "c",
+        "stdarg.h": "c"
     },
     "editor.formatOnSave": true,
     "editor.defaultFormatter": "xaver.clang-format",
