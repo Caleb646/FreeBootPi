@@ -212,13 +212,13 @@ static dma_config_s dma_config;
 
 static s32 find_open_channel (dma_type_t dma_type) {
     u32 start, end;
-    if (dma_type == DMA_STANDARD) {
+    if (dma_type == eDMA_TYPE_STANDARD) {
         start = dma_config.dma_start_id;
         end   = dma_config.dma_lite_start_id - 1;
-    } else if (dma_type == DMA_LITE) {
+    } else if (dma_type == eDMA_TYPE_LITE) {
         start = dma_config.dma_lite_start_id;
         end   = dma_config.dma4_start_id - 1;
-    } else if (dma_type == DMA4) {
+    } else if (dma_type == eDMA_TYPE_4) {
         start = dma_config.dma4_start_id;
         end   = dma_config.dma4_end_id;
     } else {
@@ -243,11 +243,11 @@ static s32 find_open_channel (dma_type_t dma_type) {
 static dma_status_t dma_allocate_channel (dma_type_t dma_type, u32* channel_out) {
     s32 channel_id = find_open_channel (dma_type);
     if (channel_id == -1) {
-        return DMA_NO_OPEN_CHANNELS;
+        return eDMA_STATUS_NO_CHANS;
     }
     *channel_out                     = channel_id;
     is_channel_allocated[channel_id] = 1;
-    return DMA_OK;
+    return eDMA_STATUS_OK;
 }
 
 /*
@@ -287,15 +287,15 @@ static dma_status_t dma_delete_channel (u32 channel_id) {
      */
     DATA_MEMORY_BARRIER_OUTER_STORES ();
     memset (&(allocated_channel_cbs[channel_id]), 0, sizeof (anonymous_cb_t) * DMA_MAX_CBS_PER_CHANNEL);
-    return DMA_OK;
+    return eDMA_STATUS_OK;
 }
 
 /*
  * \brief
  * \param control_block The src and dest addresses MUST be VPU Bus Addresses not
  * SRAM Physical addresses. Both the src and dest addresses must
- * also point to a location in the 1st GB of SRAM. Unless DMA4 is used. DMA4 can
- * use 40 bit addresses.
+ * also point to a location in the 1st GB of SRAM. Unless eDMA_TYPE_4 is used.
+ * eDMA_TYPE_4 can use 40 bit addresses.
  */
 dma_status_t
 dma_transfer (anonymous_cb_t cbs[DMA_MAX_CBS_PER_CHANNEL], u32 ncbs, u32 channel_id, dma_type_t dma_type) {
@@ -307,15 +307,15 @@ dma_transfer (anonymous_cb_t cbs[DMA_MAX_CBS_PER_CHANNEL], u32 ncbs, u32 channel
      */
     for (u32 i = 0; i < ncbs; ++i) {
         if ((i + 1) < ncbs) {
-            if (dma_type == DMA_STANDARD) {
+            if (dma_type == eDMA_TYPE_STANDARD) {
                 dma_cb_t* dma_block     = (dma_cb_t*)&(cbs[i]);
                 dma_block->next_cb_addr = ARM_TO_VPU_BUS_ADDR (
                 (uintptr_t) & (allocated_channel_cbs[channel_id + i + 1]));
-            } else if (dma_type == DMA_LITE) {
+            } else if (dma_type == eDMA_TYPE_LITE) {
                 dma_lite_cb_t* dma_block = (dma_lite_cb_t*)&(cbs[i]);
                 dma_block->next_cb_addr  = ARM_TO_VPU_BUS_ADDR (
                  (uintptr_t) & (allocated_channel_cbs[channel_id + i + 1]));
-            } else if (dma_type == DMA4) {
+            } else if (dma_type == eDMA_TYPE_4) {
                 dma4_cb_t* dma_block    = (dma4_cb_t*)&(cbs[i]);
                 dma_block->next_cb_addr = ARM_TO_VPU_BUS_ADDR (
                 (uintptr_t) & (allocated_channel_cbs[channel_id + i + 1]));
@@ -332,7 +332,7 @@ dma_transfer (anonymous_cb_t cbs[DMA_MAX_CBS_PER_CHANNEL], u32 ncbs, u32 channel
     u64 control_block_addr = (u64)(&(allocated_channel_cbs[channel_id]));
     clean_data_cache_vaddr (control_block_addr, sizeof (anonymous_cb_t) * DMA_MAX_CBS_PER_CHANNEL);
 
-    if (dma_type == DMA4) {
+    if (dma_type == eDMA_TYPE_4) {
         // TODO: dma4 has two seperate registers for the low and high part of
         // of the address.
         control_block_addr >>= DMA4_CB_ADDR_SHIFT;
@@ -346,7 +346,7 @@ dma_transfer (anonymous_cb_t cbs[DMA_MAX_CBS_PER_CHANNEL], u32 ncbs, u32 channel
         if (control_block_addr > 0x3FFFFFE0) {
             LOG_ERROR ("DMA control block address is out of bounds for DMA and "
                        "DMA Lite Channels");
-            return DMA_ERROR_ON_SETUP;
+            return eDMA_STATUS_INIT_ERROR;
         }
         control_block_addr = ARM_TO_VPU_BUS_ADDR (control_block_addr);
     }
@@ -370,7 +370,7 @@ dma_transfer (anonymous_cb_t cbs[DMA_MAX_CBS_PER_CHANNEL], u32 ncbs, u32 channel
         LOG_ERROR ("DMA CS register END or INTERRUPT bits are set to 1. Should be 0. [0x%X]", cs_status);
     }
     write32 (CS (channel_id), cs_status | CS_DMA_ACTIVE_BIT | CS_WAITFOR_WRITES_BIT);
-    return DMA_OK;
+    return eDMA_STATUS_OK;
 }
 
 static dma_status_t dma_setup_memcpy_ (
@@ -384,7 +384,7 @@ dma_type_t dma_type) {
 
     uintptr_t src_bus  = ARM_TO_VPU_BUS_ADDR (src_addr);
     uintptr_t dest_bus = ARM_TO_VPU_BUS_ADDR (dest_addr);
-    if (dma_type == DMA4) {
+    if (dma_type == eDMA_TYPE_4) {
         src_bus  = src_addr;
         dest_bus = dest_addr;
     }
@@ -393,19 +393,19 @@ dma_type_t dma_type) {
     // LOG_INFO ("DEST Bus Address [0x%X]", dest_bus);
     memset (empty_cb, 0, sizeof (anonymous_cb_t));
 
-    if (dma_type == DMA_STANDARD) {
+    if (dma_type == eDMA_TYPE_STANDARD) {
         dma_cb_t* dma_block        = (dma_cb_t*)empty_cb;
         dma_block->source_addr     = src_bus;
         dma_block->dest_addr       = dest_bus;
         dma_block->transfer_length = transfer_length;
         dma_block->transfer_info   = transfer_info;
-    } else if (dma_type == DMA_LITE) {
+    } else if (dma_type == eDMA_TYPE_LITE) {
         dma_lite_cb_t* dma_block   = (dma_lite_cb_t*)empty_cb;
         dma_block->source_addr     = src_bus;
         dma_block->dest_addr       = dest_bus;
         dma_block->transfer_length = transfer_length;
         dma_block->transfer_info   = transfer_info;
-    } else if (dma_type == DMA4) {
+    } else if (dma_type == eDMA_TYPE_4) {
         dma4_cb_t* dma_block       = (dma4_cb_t*)empty_cb;
         dma_block->source_addr     = src_bus;
         dma_block->dest_addr       = dest_bus;
@@ -413,9 +413,9 @@ dma_type_t dma_type) {
         dma_block->transfer_info   = transfer_info;
     } else {
         LOG_ERROR ("Incorrect dma_type: [%u]", dma_type);
-        return DMA_ERROR_ON_TRANSFER;
+        return eDMA_STATUS_INIT_ERROR;
     }
-    return DMA_OK;
+    return eDMA_STATUS_OK;
 }
 
 /*
@@ -431,10 +431,10 @@ dma_status_t
 dma_memcpy (uintptr_t src_addr, uintptr_t dest_addr, size_t transfer_length, dma_type_t dma_type) {
     u32 channel_id;
     dma_status_t status = dma_allocate_channel (dma_type, &channel_id);
-    if (status != DMA_OK) {
+    if (status != eDMA_STATUS_OK) {
         return status;
     } else if (transfer_length > (DMA_MAX_TRANSFER_LENGTH * DMA_MAX_CBS_PER_CHANNEL)) {
-        return DMA_TRANSFER_TOO_LARGE;
+        return eDMA_STATUS_INIT_ERROR;
     }
 
     u32 idx                 = 0;
@@ -451,7 +451,7 @@ dma_memcpy (uintptr_t src_addr, uintptr_t dest_addr, size_t transfer_length, dma
         src_addr, dest_addr, DMA_MAX_TRANSFER_LENGTH, transfer_info,
         &(blocks[idx++]), channel_id, dma_type);
 
-        if (status == DMA_OK) {
+        if (status == eDMA_STATUS_OK) {
             src_addr += DMA_MAX_TRANSFER_LENGTH;
             dest_addr += DMA_MAX_TRANSFER_LENGTH;
             transfer_length -= DMA_MAX_TRANSFER_LENGTH;
@@ -462,7 +462,7 @@ dma_memcpy (uintptr_t src_addr, uintptr_t dest_addr, size_t transfer_length, dma
     }
     status = dma_setup_memcpy_ (
     src_addr, dest_addr, transfer_length, transfer_info, &(blocks[idx]), channel_id, dma_type);
-    if (status == DMA_OK) {
+    if (status == eDMA_STATUS_OK) {
         status = dma_transfer (blocks, n_overflow_cbs + 1, channel_id, dma_type);
     }
     return status;

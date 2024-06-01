@@ -18,7 +18,7 @@ extern u8 high_heap[TEST_HEAP_SIZE];
 #else
 /*
  * Full 35-bit address map
- *   Seen by both "large address" masters (e.g. the DMA4 engines) and the ARM CPU.
+ *   Seen by both "large address" masters (e.g. the eDMA_TYPE_4 engines) and the ARM CPU.
  *   Two VPU L2 cache aliases (one allocating, one non-allocating) which cache (only) the first 1GB of SDRAM.
  *
  * Video Core and ARM DRAM Address Spaces in Low Peripheral Mode
@@ -59,25 +59,25 @@ extern u8 high_heap[TEST_HEAP_SIZE];
 #ifndef __ASSEMBLER__
 
 typedef enum heap_id_t {
-    MEM_LOW_HEAP_ID      = 0,
-    MEM_MID_HEAP_ID      = 1,
-    MEM_HIGH_HEAP_ID     = 2,
-    MEM_STANDARD_HEAP_ID = MEM_MID_HEAP_ID
+    eHEAP_ID_LOW     = 0,
+    eHEAP_ID_MID     = 1,
+    eHEAP_ID_HIGH    = 2,
+    eHEAP_ID_DEFAULT = eHEAP_ID_MID
 } heap_id_t;
 
-/* Do NOT adjust order of node_s members*/
-typedef struct node_s {
+/* Do NOT adjust order of node_t members*/
+typedef struct node_t {
     size_t sz;
-    struct node_s* next;
-} node_s;
+    struct node_t* next;
+} node_t;
 
-typedef struct heap_s {
+typedef struct heap_t {
     u8 const* start;
     u8 const* end;
     u8* cur_pos;
     u64 size;
-    node_s* free_list_head;
-} heap_s;
+    node_t* free_list_head;
+} heap_t;
 
 GCC_NODISCARD void* align_allocate (size_t sz, size_t alignment);
 GCC_NODISCARD void* callocate (heap_id_t heap_id, size_t sz);
@@ -88,11 +88,7 @@ GCC_NODISCARD void* allocate (size_t sz);
 GCC_NODISCARD void* page_allocate (void);
 
 void delete (void* ptr);
-s32 mem_init (heap_s*);
-
-
-void enable_mmu (void);
-
+s32 mem_init (heap_t*);
 
 #endif // __ASSEMBLER__
 

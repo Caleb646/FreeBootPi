@@ -76,7 +76,7 @@ void screen_init (void) {
         LOG_INFO ("Pixel Order [%u]", pix_order);
         LOG_INFO ("Bytes Per Line [%u]", bytes_per_line);
 
-        frame_buffer_ = (u8*)callocate (MEM_LOW_HEAP_ID, fb_size);
+        frame_buffer_ = (u8*)callocate (eHEAP_ID_LOW, fb_size);
 
         LOG_INFO (
         "Local Frame Buffer Addr [0x%X] End [0x%X] Kernel Start [0x%X]",
@@ -137,17 +137,14 @@ void screen_draw_string (u32 x, u32 y, u32 color, char* str) {
 }
 
 void screen_update (void) {
-    DATA_MEMORY_BARRIER_OUTER_STORES ();
-    // memcpy (frame_buffer_, fb_size, vpu_frame_buffer_);
-    if (frame_buffer_ == NULLPTR || vpu_frame_buffer_ == NULLPTR) {
-        LOG_ERROR (
-        "Screen can NOT update frame buffer or vpu framer buffer is NULL");
-        return;
-    }
+    DATA_MEMORY_BARRIER_INNER_STORES ();
+
+    ASSERT (!(frame_buffer_ == NULLPTR || vpu_frame_buffer_ == NULLPTR), "Screen can NOT update frame buffer or vpu framer buffer is NULL");
+
     clean_invalidate_data_cache_vaddr ((uintptr_t)frame_buffer_, fb_size);
     dma_status_t status =
-    dma_memcpy ((uintptr_t)frame_buffer_, (uintptr_t)vpu_frame_buffer_, fb_size, DMA_STANDARD);
-    if (status != DMA_OK) {
+    dma_memcpy ((uintptr_t)frame_buffer_, (uintptr_t)vpu_frame_buffer_, fb_size, eDMA_TYPE_STANDARD);
+    if (status != eDMA_STATUS_OK) {
         LOG_ERROR ("DMA transfer to VPU frame buffer failed because [%u]", status);
     }
 }

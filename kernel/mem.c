@@ -9,12 +9,12 @@ extern u8 high_heap[TEST_HEAP_SIZE];
 #include "sync.h"
 #endif
 
-static heap_s heaps[MEM_NUM_HEAP_SECTIONS];
+static heap_t heaps[MEM_NUM_HEAP_SECTIONS];
 
 static s32 find_heap (void* ptr) {
     uintptr_t ptr_addr = (uintptr_t)ptr;
     for (u32 i = 0; i < MEM_NUM_HEAP_SECTIONS; ++i) {
-        heap_s heap = heaps[i];
+        heap_t heap = heaps[i];
         if (ptr_addr >= (uintptr_t)heap.start && ptr_addr <= (uintptr_t)heap.end) {
             return i;
         }
@@ -23,21 +23,21 @@ static s32 find_heap (void* ptr) {
 }
 
 GCC_NODISCARD void* page_allocate (void) {
-    heap_s* heap = &heaps[MEM_MID_HEAP_ID];
+    heap_t* heap = &heaps[eHEAP_ID_MID];
     void* alloc  = heap->cur_pos;
     heap->cur_pos += PAGE_SIZE;
     return alloc;
 }
 
-GCC_NODISCARD static void* align_allocate_ (heap_s* heap, size_t sz, size_t alignment) {
+GCC_NODISCARD static void* align_allocate_ (heap_t* heap, size_t sz, size_t alignment) {
     // Interrupt but NOT thread safe
     s32 status = enter_critical (IRQ_DISABLED_FIQ_DISABLED_TARGET);
     if (status == -1) {
         return NULLPTR;
     }
-    node_s* prev  = NULLPTR;
-    node_s** cur  = &(heap->free_list_head);
-    node_s* alloc = NULLPTR;
+    node_t* prev  = NULLPTR;
+    node_t** cur  = &(heap->free_list_head);
+    node_t* alloc = NULLPTR;
     while ((*cur) != NULLPTR) {
         /*
          * TODO: A very large previous allocation in the free list could be used to allocate a small object.
@@ -47,7 +47,7 @@ GCC_NODISCARD static void* align_allocate_ (heap_s* heap, size_t sz, size_t alig
             if ((*cur)->next != NULLPTR && prev != NULLPTR) {
                 prev->next = (*cur)->next;
             }
-            alloc     = (node_s*)(*cur);
+            alloc     = (node_t*)(*cur);
             alloc->sz = (*cur)->sz;
             *cur      = NULLPTR;
             break;
@@ -71,7 +71,7 @@ GCC_NODISCARD static void* align_allocate_ (heap_s* heap, size_t sz, size_t alig
          */
         heap->cur_pos =
         (u8*)(((uintptr_t)heap->cur_pos + (alignment - 1) + sizeof (size_t)) & (~(alignment - 1)));
-        alloc     = (node_s*)((uintptr_t)heap->cur_pos - sizeof (size_t));
+        alloc     = (node_t*)((uintptr_t)heap->cur_pos - sizeof (size_t));
         alloc->sz = sz;
         heap->cur_pos += sz;
     }
@@ -88,7 +88,7 @@ GCC_NODISCARD static void* align_allocate_ (heap_s* heap, size_t sz, size_t alig
  * boundary. Must be a power of 2.
  */
 GCC_NODISCARD void* align_allocate (size_t sz, size_t alignment) {
-    return align_allocate_ (&(heaps[MEM_STANDARD_HEAP_ID]), sz, alignment);
+    return align_allocate_ (&(heaps[eHEAP_ID_DEFAULT]), sz, alignment);
 }
 
 GCC_NODISCARD void* callocate (heap_id_t heap_id, size_t sz) {
@@ -136,12 +136,12 @@ void delete (void* ptr) {
         return;
     }
 
-    heap_s* heap = &(heaps[heap_id]);
+    heap_t* heap = &(heaps[heap_id]);
 
-    node_s* node      = (node_s*)(((u8*)ptr) - sizeof (size_t));
+    node_t* node      = (node_t*)(((u8*)ptr) - sizeof (size_t));
     size_t alloc_size = node->sz;
     if (heap->free_list_head == NULLPTR) {
-        heap->free_list_head       = (node_s*)node;
+        heap->free_list_head       = (node_t*)node;
         heap->free_list_head->sz   = alloc_size;
         heap->free_list_head->next = NULLPTR;
         return;
@@ -149,10 +149,10 @@ void delete (void* ptr) {
     /*
      * TODO: Should join near by free_list entries together
      */
-    node_s* cur = heap->free_list_head;
+    node_t* cur = heap->free_list_head;
     while (cur != NULLPTR) {
         if (cur->next == NULLPTR) {
-            cur->next       = (node_s*)ptr;
+            cur->next       = (node_t*)ptr;
             cur->next->sz   = alloc_size;
             cur->next->next = NULLPTR;
             return;
@@ -408,36 +408,25 @@ typedef struct page_desc_lvl3 {
     ignored0		: 9;	            // set to 0
 
 } GCC_PACKED page_desc_lvl3;
+
+STATIC_ASSERT((sizeof(tbl_desc_lvl2) == 8));
+STATIC_ASSERT((sizeof(page_desc_lvl3) == 8));
 // clang-format on
 
 static void* create_translation_tbl_lvl3_ (uintptr_t addr) {
-    // page_desc_lvl3* tbl =
-    // (page_desc_lvl3*)calign_allocate (MEM_MID_HEAP_ID, PAGE_SIZE, PAGE_SIZE);
-
     page_desc_lvl3* tbl = page_allocate ();
     memset (tbl, 0, PAGE_SIZE);
-
     // LOG_INFO ("MMU Level 3 Page Table with Addr [0x%X]", (uintptr_t)tbl);
     /*
      * With Granule Size 64KB addresses to level 3 tables have
      * 1 + 47 - 16 = 32 bits to represent a physical address to their table.
      * 1111 1111 1111 1111 1111 1111 1111 1111 0000 0000 0000 0000
      */
-    if (tbl == NULLPTR) {
-        LOG_ERROR ("MMU Failed to allocate level 3 Page Table");
-        return NULLPTR;
-    }
-    if ((((uintptr_t)tbl) & ~0xFFFFFFFF0000UL) > 0) {
-        LOG_ERROR ("MMU Level 3 Page table address is NOT aligned: [0x%X]", (uintptr_t)tbl);
-        return NULLPTR;
-    }
-    if (sizeof (page_desc_lvl3) != 8) {
-        LOG_ERROR ("MMU Level 3 Page Descriptor Struct is not 64 bits. [%u]", sizeof (page_desc_lvl3));
-        return NULLPTR;
-    }
-    if (sizeof (page_desc_lvl3) * MMU_LEVEL3_ENTRIES != PAGE_SIZE) {
-        LOG_ERROR ("MMU Level 3 Table is incorrect size");
-    }
+    ASSERT ((tbl != NULLPTR), "MMU Failed to allocate level 3 Page Table");
+    ASSERT (
+    !((((uintptr_t)tbl) & ~0xFFFFFFFF0000UL) > 0),
+    "MMU Level 3 Page table address is NOT aligned: [0x%X]", (uintptr_t)tbl);
+    ASSERT ((sizeof (page_desc_lvl3) * MMU_LEVEL3_ENTRIES == PAGE_SIZE), "MMU Level 3 Table is incorrect size");
 
     for (uintptr_t entry_idx = 0; entry_idx < MMU_LEVEL3_ENTRIES; ++entry_idx) {
         page_desc_lvl3* desc = &(tbl[entry_idx]);
@@ -481,10 +470,7 @@ static void* create_translation_tbl_lvl3_ (uintptr_t addr) {
 }
 
 static void* translation_tbl_init_ (void) {
-    uintptr_t addr = 0x0;
-    // tbl_desc_lvl2* table_ptr =
-    // (tbl_desc_lvl2*)calign_allocate (MEM_MID_HEAP_ID, PAGE_SIZE, PAGE_SIZE);
-
+    uintptr_t addr           = 0x0;
     tbl_desc_lvl2* table_ptr = page_allocate ();
     memset (table_ptr, 0, PAGE_SIZE);
 
@@ -497,17 +483,9 @@ static void* translation_tbl_init_ (void) {
         return NULLPTR;
     }
 
-    if (sizeof (tbl_desc_lvl2) != 8) {
-        LOG_ERROR ("MMU Level 2 Table Descriptor Struct is not 64 bits. [%u]", sizeof (tbl_desc_lvl2));
-    }
-
     LOG_DEBUG ("MMU Level 2 Table Address [0x%X]", (uintptr_t)table_ptr);
     for (uintptr_t entry_idx = 0; entry_idx < MMU_LEVEL2_ENTRIES; ++entry_idx) {
         addr = entry_idx * MMU_LEVEL3_ENTRIES * PAGE_SIZE;
-        // u32 h = (addr >> 32);
-        // u32 l = (addr & 0xFFFFFFFF);
-        // LOG_INFO ("MMU Physical Address [0x%x%x]", h, l);
-
         /*
          * Leave entries greater than 4GB as invalid entries
          */
@@ -519,25 +497,6 @@ static void* translation_tbl_init_ (void) {
         if (subtbl == NULLPTR) {
             LOG_ERROR ("MMU Failed to create Lvl 3 Table");
         }
-
-        /*
-         * What could be wrong?
-         *   1. Level 2/3 Page Table(s) addresses are not aligned correctly
-         *      a. I don't think so because a page fault should be generated and an exception handler
-         *          should be called.
-         *          aa. But if the mmu is enabled and configured incorrectly the proper handler may never
-         *              be called but some other random memory location.
-         *  2. Is an instruction being trapped to EL2 and the EL2 exception handler is misconfigured?
-         *      a.
-         *  3. The address translation process is messed up somewhere?
-         *       a. If a setting was incorrect then an exception handler should be called?
-         *           1. Since no exception handler is called it must mean that the addresses
-         *               are being translated incorrectly
-         * How can I debug it?
-         *   1. I can't see the address translation process.
-         *   2. Can I enable errors so an exception handler gets called?
-         *       a. But how will my exception handler work with incorrect addresses
-         */
 
         tbl_desc_lvl2* desc = &(table_ptr[entry_idx]);
         desc->entry_type    = 3; // table descriptor
@@ -552,7 +511,7 @@ static void* translation_tbl_init_ (void) {
     return (void*)table_ptr;
 }
 
-void enable_mmu (void) {
+static void mmu_init (void) {
     void* tran_tbl = translation_tbl_init_ ();
 
     u64 mair = MAIR_DEVICE << (MAIR_DEVICE_IDX * 8);
@@ -609,37 +568,45 @@ void enable_mmu (void) {
     LOG_INFO ("MMU Setup Complete");
 }
 
-s32 mem_init (heap_s* hp) {
+s32 mem_init (heap_t* hp) {
     if (hp == NULLPTR) {
         //#ifndef ON_HOST_TESTING
-        heap_s low              = { .start   = (u8*)ARM_DRAM_LOW_MEM_START,
-                                    .end     = (u8*)ARM_DRAM_LOW_MEM_END,
-                                    .cur_pos = (u8*)ARM_DRAM_LOW_MEM_START,
-                                    .size    = ARM_DRAM_LOW_MEM_END - ARM_DRAM_LOW_MEM_START,
-                                    .free_list_head = NULLPTR };
-        heap_s mid              = { .start   = (u8*)ARM_DRAM_MID_MEM_START,
-                                    .end     = (u8*)ARM_DRAM_MID_MEM_END,
-                                    .cur_pos = (u8*)ARM_DRAM_MID_MEM_START,
-                                    .size    = ARM_DRAM_MID_MEM_END - ARM_DRAM_MID_MEM_START,
-                                    .free_list_head = NULLPTR };
-        heap_s high             = { .start   = (u8*)ARM_DRAM_HIGH_MEM_START,
-                                    .end     = (u8*)ARM_DRAM_HIGH_MEM_END,
-                                    .cur_pos = (u8*)ARM_DRAM_HIGH_MEM_START,
-                                    .size = ARM_DRAM_HIGH_MEM_END - ARM_DRAM_HIGH_MEM_START,
-                                    .free_list_head = NULLPTR };
-        heaps[MEM_LOW_HEAP_ID]  = low;
-        heaps[MEM_MID_HEAP_ID]  = mid;
-        heaps[MEM_HIGH_HEAP_ID] = high;
+        heap_t low           = { .start   = (u8*)ARM_DRAM_LOW_MEM_START,
+                                 .end     = (u8*)ARM_DRAM_LOW_MEM_END,
+                                 .cur_pos = (u8*)ARM_DRAM_LOW_MEM_START,
+                                 .size    = ARM_DRAM_LOW_MEM_END - ARM_DRAM_LOW_MEM_START,
+                                 .free_list_head = NULLPTR };
+        heap_t mid           = { .start   = (u8*)ARM_DRAM_MID_MEM_START,
+                                 .end     = (u8*)ARM_DRAM_MID_MEM_END,
+                                 .cur_pos = (u8*)ARM_DRAM_MID_MEM_START,
+                                 .size    = ARM_DRAM_MID_MEM_END - ARM_DRAM_MID_MEM_START,
+                                 .free_list_head = NULLPTR };
+        heap_t high          = { .start   = (u8*)ARM_DRAM_HIGH_MEM_START,
+                                 .end     = (u8*)ARM_DRAM_HIGH_MEM_END,
+                                 .cur_pos = (u8*)ARM_DRAM_HIGH_MEM_START,
+                                 .size = ARM_DRAM_HIGH_MEM_END - ARM_DRAM_HIGH_MEM_START,
+                                 .free_list_head = NULLPTR };
+        heaps[eHEAP_ID_LOW]  = low;
+        heaps[eHEAP_ID_MID]  = mid;
+        heaps[eHEAP_ID_HIGH] = high;
         LOG_INFO (
-        "Low Heap Start [0x%X] End [0x%X]", (uintptr_t)heaps[MEM_LOW_HEAP_ID].start,
-        (uintptr_t)heaps[MEM_LOW_HEAP_ID].end);
+        "Low Heap Start [0x%X] End [0x%X]", (uintptr_t)heaps[eHEAP_ID_LOW].start,
+        (uintptr_t)heaps[eHEAP_ID_LOW].end);
         LOG_INFO (
-        "Mid Heap Start [0x%X] End [0x%X]", (uintptr_t)heaps[MEM_MID_HEAP_ID].start,
-        (uintptr_t)heaps[MEM_MID_HEAP_ID].end);
+        "Mid Heap Start [0x%X] End [0x%X]", (uintptr_t)heaps[eHEAP_ID_MID].start,
+        (uintptr_t)heaps[eHEAP_ID_MID].end);
         LOG_INFO (
-        "High Heap Start [0x%X] End [0x%X]", (uintptr_t)heaps[MEM_HIGH_HEAP_ID].start,
-        (uintptr_t)heaps[MEM_HIGH_HEAP_ID].end);
+        "High Heap Start [0x%X] End [0x%X]", (uintptr_t)heaps[eHEAP_ID_HIGH].start,
+        (uintptr_t)heaps[eHEAP_ID_HIGH].end);
         //#endif
     }
+    // Invalidate instruction cache
+    asm volatile("ic IALLUIS");
+    // Invalidate TLB entries
+    asm volatile("tlbi vmalle1");
+    DATA_SYNC_BARRIER_FS_ANY ();
+    ISB ();
+
+    mmu_init ();
     return 1;
 }

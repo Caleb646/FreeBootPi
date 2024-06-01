@@ -13,9 +13,11 @@
 #define DATA_MEMORY_BARRIER_NOSHARE_ANY() asm volatile("dmb NSH" ::: "memory")
 /* ISH --- Operation only to the Inner Shareable domain (i.e. visible to all or some cores) */
 #define DATA_MEMORY_BARRIER_INNER_ANY()   asm volatile("dmb ISH" ::: "memory")
+#define DATA_MEMORY_BARRIER_INNER_STORES() \
+    asm volatile("dmb ISHST" ::: "memory")
 /* Operation only to the outer shareable domain and waits only for stores to complete*/
 #define DATA_MEMORY_BARRIER_OUTER_STORES() \
-    asm volatile("dmb ISHST" ::: "memory")
+    asm volatile("dmb OSHST" ::: "memory")
 
 #define DATA_MEMORY_BARRIER_FS_STORES() asm volatile("dmb ST" ::: "memory")
 #define DATA_MEMORY_BARRIER_FS_LOADS()  asm volatile("dmb LD" ::: "memory")

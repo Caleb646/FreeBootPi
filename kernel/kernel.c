@@ -37,15 +37,9 @@ void kernel_main (void) {
     // Data Cache should be invalidated on reset and startup.
     // L1 cache for secondary cores should be as well.
     cache_invalidate ();
-    // Invalidate instruction cache
-    asm volatile("ic IALLUIS");
-    // Invalidate TLB entries
-    asm volatile("tlbi vmalle1");
-    DATA_SYNC_BARRIER_FS_ANY ();
-    ISB ();
 
     mem_init (NULLPTR);
-    enable_mmu ();
+    // enable_mmu ();
 
     dma_init (NULLPTR);
     screen_init ();
@@ -54,7 +48,7 @@ void kernel_main (void) {
     while (1) {
         // u8* ptr = (u8*)malloc(sizeof(size_t));
         // u8* ptr2 = (u8*)malloc(sizeof(size_t));
-        // LOG_DEBUG("Address: [%X]  [%X] [%u]", ptr, ptr2, sizeof(node_s));
+        // LOG_DEBUG("Address: [%X]  [%X] [%u]", ptr, ptr2, sizeof(node_t));
         // free(ptr);
         // screen_draw_rect (500, 500, 50, 50, WHITE);
         LOG_DEBUG ("Tick");

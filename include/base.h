@@ -138,12 +138,9 @@ typedef unsigned char u8;
 typedef unsigned int u32;
 typedef long unsigned int u64;
 typedef u64 size_t;
-
 typedef signed int s32;
 typedef long signed int s64;
-
-typedef unsigned long uintptr_t;
-
+typedef u64 uintptr_t;
 typedef void (*irq_handler_t) (u32 irq_id);
 
 STATIC_ASSERT ((sizeof (u8) == 1));
@@ -193,9 +190,9 @@ extern u32 __kernel_end;
 #define ARM_TO_VPU_BUS_ADDR(addr) (VPU_BUS_TO_ARM_ADDR (addr) | 0xC0000000)
 
 
-void write32 (u64 addr, u32 val);
-void write64 (u64 addr, u64 val);
-u32 read32 (u64 addr);
+void write32 (uintptr_t addr, u32 val);
+void write64 (uintptr_t addr, u64 val);
+u32 read32 (uintptr_t addr);
 u64 get_arm_core_id (void);
 u64 get_arm_exception_lvl (void);
 void memset (void* src, u8 value, size_t nbytes);

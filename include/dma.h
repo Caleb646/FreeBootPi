@@ -83,15 +83,21 @@ typedef struct dma4_cb_t {
     u32 reserved;
 } dma4_cb_t;
 
-typedef enum dma_type_t { DMA_STANDARD, DMA_LITE, DMA4 } dma_type_t;
+STATIC_ASSERT ((sizeof (anonymous_cb_t) == 8 * 4));
+STATIC_ASSERT ((sizeof (dma_cb_t) == 8 * 4));
+STATIC_ASSERT ((sizeof (dma_lite_cb_t) == 8 * 4));
+STATIC_ASSERT ((sizeof (dma4_cb_t) == 8 * 4));
+
+typedef enum dma_type_t {
+    eDMA_TYPE_STANDARD,
+    eDMA_TYPE_LITE,
+    eDMA_TYPE_4
+} dma_type_t;
 
 typedef enum dma_status_t {
-    DMA_OK = 1,
-    DMA_NO_OPEN_CHANNELS,
-    DMA_ERROR_ON_TRANSFER,
-    DMA_TRANSFER_TOO_LARGE,
-    DMA_ERROR_ON_SETUP
-
+    eDMA_STATUS_OK = 1,
+    eDMA_STATUS_NO_CHANS,
+    eDMA_STATUS_INIT_ERROR
 } dma_status_t;
 
 dma_status_t
