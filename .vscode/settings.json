@@ -11,7 +11,9 @@
         "charconv": "c",
         "source_location": "c",
         "stacktrace": "c",
-        "stdarg.h": "c"
+        "stdarg.h": "c",
+        "vpu.h": "c",
+        "time.h": "c"
     },
     "editor.formatOnSave": true,
     "editor.defaultFormatter": "xaver.clang-format",

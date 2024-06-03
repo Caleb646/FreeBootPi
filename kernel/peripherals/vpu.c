@@ -27,7 +27,7 @@
 static u32 volatile GCC_ALIGN_ADDR (16) cmd_buffer_[VPU_CMD_BUFFER_SIZE] = { 0 };
 
 // https://github.com/raspberrypi/firmware/wiki/Mailbox-property-interface
-s32 vpu_call (u32 (*buffer_ptr)[VPU_CMD_BUFFER_SIZE], u8 channel) {
+vpu_status_t vpu_call (u32 (*buffer_ptr)[VPU_CMD_BUFFER_SIZE], u8 channel) {
     memcpy (*buffer_ptr, sizeof (cmd_buffer_), (void*)cmd_buffer_);
     // buffer addresses are not 64 bits but this makes
     // the compiler happy.
@@ -63,7 +63,7 @@ s32 vpu_call (u32 (*buffer_ptr)[VPU_CMD_BUFFER_SIZE], u8 channel) {
             // response should always be at index 1
             if (VPU_IS_VALID_MBOX_RESPONSE (cmd_buffer_[1])) {
                 memcpy ((void*)cmd_buffer_, sizeof (cmd_buffer_), *buffer_ptr);
-                return 1;
+                return eVPU_STATUS_OK;
             }
             return 0;
         }

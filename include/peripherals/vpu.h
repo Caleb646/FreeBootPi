@@ -31,9 +31,24 @@
 #define VPU_MBOX_CH_COUNT             7
 #define VPU_MBOX_CH_PROP              8 // Channel 8: Request from ARM for response by VC
 
+#define VPU_DEV_ID_USB_HCD            0x3
+
 #define VPU_CMD_BUFFER_SIZE           36
 
-s32 vpu_call (u32 (*buffer_ptr)[VPU_CMD_BUFFER_SIZE], u8 channel);
+/*
+ * \brief Creates a u32 `cmd_buffer` array on the stack, makes it the correct
+ * size, and adds the appropriate starting and ending tags
+ */
+#define VPU_CMB_BUFF_INIT(...)                                     \
+    u32 cmd_buffer[VPU_CMD_BUFFER_SIZE] = { VPU_MBOX_REQUEST_CODE, \
+                                            __VA_ARGS__, VPU_MBOX_TAG_LAST };
+
+typedef enum vpu_status_t {
+    eVPU_STATUS_FAILED = 0,
+    eVPU_STATUS_OK     = 1
+} vpu_status_t;
+
+vpu_status_t vpu_call (u32 (*buffer_ptr)[VPU_CMD_BUFFER_SIZE], u8 channel);
 
 // extern u32 volatile vid_core_buffer[VID_CORE_BUFFER_SIZE];
 

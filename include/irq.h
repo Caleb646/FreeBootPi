@@ -16,15 +16,15 @@
  * https://github.com/raspberrypi/linux/blob/rpi-6.6.y/arch/arm/boot/dts/broadcom/bcm2711.dtsi
  */
 
-#define GIC_BASE (0xFF840000)
+#define GIC_BASE       (0xFF840000)
 
 /************************* Distributor Registers *********************************/
 #define GICD_DIST_BASE (GIC_BASE + 0x00001000)
 
 #define GICD_CTLR \
-    (GICD_DIST_BASE + 0x000)      // RW 0x00000000c Distributor Control Register
-#define GICD_CTLR_DISABLE 0x0     /* Value to disable distributor */
-#define GICD_CTLR_ENABLE (1 << 0) /* Value to enable distributor */
+    (GICD_DIST_BASE + 0x000)  // RW 0x00000000c Distributor Control Register
+#define GICD_CTLR_DISABLE 0x0 /* Value to disable distributor */
+#define GICD_CTLR_ENABLE  (1 << 0) /* Value to enable distributor */
 
 #define GICD_TYPER \
     (GICD_DIST_BASE + 0x004) // RO Configuration-dependentd Interrupt Controller Type Register
@@ -296,8 +296,8 @@
 #define GICD_ICFGR1 \
     (GICD_DIST_BASE + 0xC04) // GICD_ICFGRn RO PPIs: 0x55540000 Interrupt Configuration Registers, GICD_ICFGRn
 #define GICD_ICFGRn(interrupt_reg_id) (GICD_ICFGR0 + interrupt_reg_id * 4)
-#define GICD_ICFGR_LEVEL_TRIGGERED 0b00
-#define GICD_ICFGR_EDGE_TRIGGERED 0b10
+#define GICD_ICFGR_LEVEL_TRIGGERED    0b00
+#define GICD_ICFGR_EDGE_TRIGGERED     0b10
 // #define GICD_ICFGRn 0xC08-0xC7C // GICD_ICFGRn R/W SPIs: 0x55555555 Interrupt Configuration Registers, GICD_ICFGRn
 
 // Enables a processor to access the status of the PPI (Private Peripheral
@@ -385,7 +385,7 @@
 #define GICC_CTLR \
     (GICC_CPU_BASE + 0x0000) //  RW 0x00000000 CPU Interface Control Register
 #define GICC_CTLR_DISABLE (0 << 0)
-#define GICC_CTLR_ENABLE (1 << 0)
+#define GICC_CTLR_ENABLE  (1 << 0)
 
 // This register provides an interrupt priority filter. Only interrupts with a
 // higher priority than the value in this register are signaled to the PE
@@ -442,97 +442,99 @@
  *
  * https://github.com/raspberrypi/linux/blob/rpi-6.6.y/arch/arm/boot/dts/broadcom/bcm2711.dtsi
  */
-#define GIC_NUM_PPIs 32
-#define GIC_PPI_END 31
+#define GIC_NUM_PPIs                    32
+#define GIC_PPI_END                     31
 
 /*
  * ARM Per Core (PPIs) Interrupt IDs
  * 6 interrupts per core. Range from 7 to 31
  */
-#define ARM_CORE_HP_TIMER_IRQ(core_id) ((core_id * 4) + 0 + 7)
-#define ARM_CORE_V_TIMER_IRQ(core_id) ((core_id * 4) + 1 + 7)
-#define ARM_CORE_LEGACY_FIQ(core_id) ((core_id * 4) + 2 + 7)
-#define ARM_CORE_PS_TIMER_IRQ(core_id) ((core_id * 4) + 3 + 7)
+#define ARM_CORE_HP_TIMER_IRQ(core_id)  ((core_id * 4) + 0 + 7)
+#define ARM_CORE_V_TIMER_IRQ(core_id)   ((core_id * 4) + 1 + 7)
+#define ARM_CORE_LEGACY_FIQ(core_id)    ((core_id * 4) + 2 + 7)
+#define ARM_CORE_PS_TIMER_IRQ(core_id)  ((core_id * 4) + 3 + 7)
 #define ARM_CORE_PNS_TIMER_IRQ(core_id) ((core_id * 4) + 4 + 7)
-#define ARM_CORE_LEGACY_IRQ(core_id) ((core_id * 4) + 5 + 7)
-#define ARM_CORE_IRQID_END 31
+#define ARM_CORE_LEGACY_IRQ(core_id)    ((core_id * 4) + 5 + 7)
+#define ARM_CORE_IRQID_END              31
 
 // ARM Local Interrupts
 // ARM Local GIC IRQ Ids: 32 through 47 - (Page 89 and 90 of BCM2711 ARM Peripherals)
-#define ARM_LOCAL_IRQ_BASE (32)
-#define ARM_LOCAL_MBOX_IRQ0 (ARM_LOCAL_IRQ_BASE + 0)
-#define ARM_LOCAL_MBOX_IRQ1 (ARM_LOCAL_IRQ_BASE + 1)
-#define ARM_LOCAL_MBOX_IRQ2 (ARM_LOCAL_IRQ_BASE + 2)
-#define ARM_LOCAL_MBOX_IRQ3 (ARM_LOCAL_IRQ_BASE + 3)
-#define ARM_LOCAL_MBOX_IRQ4 (ARM_LOCAL_IRQ_BASE + 4)
-#define ARM_LOCAL_MBOX_IRQ5 (ARM_LOCAL_IRQ_BASE + 5)
-#define ARM_LOCAL_MBOX_IRQ6 (ARM_LOCAL_IRQ_BASE + 6)
-#define ARM_LOCAL_MBOX_IRQ7 (ARM_LOCAL_IRQ_BASE + 7)
-#define ARM_LOCAL_MBOX_IRQ8 (ARM_LOCAL_IRQ_BASE + 8)
-#define ARM_LOCAL_MBOX_IRQ9 (ARM_LOCAL_IRQ_BASE + 9)
-#define ARM_LOCAL_MBOX_IRQ10 (ARM_LOCAL_IRQ_BASE + 10)
-#define ARM_LOCAL_MBOX_IRQ11 (ARM_LOCAL_IRQ_BASE + 11)
-#define ARM_LOCAL_MBOX_IRQ12 (ARM_LOCAL_IRQ_BASE + 12)
-#define ARM_LOCAL_MBOX_IRQ13 (ARM_LOCAL_IRQ_BASE + 13)
-#define ARM_LOCAL_MBOX_IRQ14 (ARM_LOCAL_IRQ_BASE + 14)
-#define ARM_LOCAL_MBOX_IRQ15 (ARM_LOCAL_IRQ_BASE + 15)
+#define ARM_LOCAL_IRQ_BASE              (32)
+#define ARM_LOCAL_MBOX_IRQ0             (ARM_LOCAL_IRQ_BASE + 0)
+#define ARM_LOCAL_MBOX_IRQ1             (ARM_LOCAL_IRQ_BASE + 1)
+#define ARM_LOCAL_MBOX_IRQ2             (ARM_LOCAL_IRQ_BASE + 2)
+#define ARM_LOCAL_MBOX_IRQ3             (ARM_LOCAL_IRQ_BASE + 3)
+#define ARM_LOCAL_MBOX_IRQ4             (ARM_LOCAL_IRQ_BASE + 4)
+#define ARM_LOCAL_MBOX_IRQ5             (ARM_LOCAL_IRQ_BASE + 5)
+#define ARM_LOCAL_MBOX_IRQ6             (ARM_LOCAL_IRQ_BASE + 6)
+#define ARM_LOCAL_MBOX_IRQ7             (ARM_LOCAL_IRQ_BASE + 7)
+#define ARM_LOCAL_MBOX_IRQ8             (ARM_LOCAL_IRQ_BASE + 8)
+#define ARM_LOCAL_MBOX_IRQ9             (ARM_LOCAL_IRQ_BASE + 9)
+#define ARM_LOCAL_MBOX_IRQ10            (ARM_LOCAL_IRQ_BASE + 10)
+#define ARM_LOCAL_MBOX_IRQ11            (ARM_LOCAL_IRQ_BASE + 11)
+#define ARM_LOCAL_MBOX_IRQ12            (ARM_LOCAL_IRQ_BASE + 12)
+#define ARM_LOCAL_MBOX_IRQ13            (ARM_LOCAL_IRQ_BASE + 13)
+#define ARM_LOCAL_MBOX_IRQ14            (ARM_LOCAL_IRQ_BASE + 14)
+#define ARM_LOCAL_MBOX_IRQ15            (ARM_LOCAL_IRQ_BASE + 15)
 
 // ARMC Interrupts
 // ARMC GIC IRQ Ids: 64 through 79 - (Page 87 and 90 of BCM2711 ARM Peripherals)
-#define ARMC_IRQ_BASE (64)
-#define ARMC_TIMER_IRQ (AMRC_IRQ_BASE + 0)
-#define ARMC_MAILBOX_IRQ (AMRC_IRQ_BASE + 1)
-#define ARMC_DOORBELL_IRQ_0 (AMRC_IRQ_BASE + 2)
-#define ARMC_DOORBELL_IRQ_1 (AMRC_IRQ_BASE + 3)
-#define ARMC_VPU_IRQ_0 (AMRC_IRQ_BASE + 4)
-#define ARMC_VPU_IRQ_1 (AMRC_IRQ_BASE + 5)
-#define ARMC_ADDRESS_ERROR_IRQ (AMRC_IRQ_BASE + 6)
-#define ARMC_AXI_IRQ (AMRC_IRQ_BASE + 7)
-#define ARMC_SOFTWARE_IRQ_0 (AMRC_IRQ_BASE + 8)
-#define ARMC_SOFTWARE_IRQ_1 (AMRC_IRQ_BASE + 9)
-#define ARMC_SOFTWARE_IRQ_2 (AMRC_IRQ_BASE + 10)
-#define ARMC_SOFTWARE_IRQ_3 (AMRC_IRQ_BASE + 11)
-#define ARMC_SOFTWARE_IRQ_4 (AMRC_IRQ_BASE + 12)
-#define ARMC_SOFTWARE_IRQ_5 (AMRC_IRQ_BASE + 13)
-#define ARMC_SOFTWARE_IRQ_6 (AMRC_IRQ_BASE + 14)
-#define ARMC_SOFTWARE_IRQ_7 (AMRC_IRQ_BASE + 15)
+#define ARMC_IRQ_BASE                   (64)
+#define ARMC_TIMER_IRQ                  (AMRC_IRQ_BASE + 0)
+#define ARMC_MAILBOX_IRQ                (AMRC_IRQ_BASE + 1)
+#define ARMC_DOORBELL_IRQ_0             (AMRC_IRQ_BASE + 2)
+#define ARMC_DOORBELL_IRQ_1             (AMRC_IRQ_BASE + 3)
+#define ARMC_VPU_IRQ_0                  (AMRC_IRQ_BASE + 4)
+#define ARMC_VPU_IRQ_1                  (AMRC_IRQ_BASE + 5)
+#define ARMC_ADDRESS_ERROR_IRQ          (AMRC_IRQ_BASE + 6)
+#define ARMC_AXI_IRQ                    (AMRC_IRQ_BASE + 7)
+#define ARMC_SOFTWARE_IRQ_0             (AMRC_IRQ_BASE + 8)
+#define ARMC_SOFTWARE_IRQ_1             (AMRC_IRQ_BASE + 9)
+#define ARMC_SOFTWARE_IRQ_2             (AMRC_IRQ_BASE + 10)
+#define ARMC_SOFTWARE_IRQ_3             (AMRC_IRQ_BASE + 11)
+#define ARMC_SOFTWARE_IRQ_4             (AMRC_IRQ_BASE + 12)
+#define ARMC_SOFTWARE_IRQ_5             (AMRC_IRQ_BASE + 13)
+#define ARMC_SOFTWARE_IRQ_6             (AMRC_IRQ_BASE + 14)
+#define ARMC_SOFTWARE_IRQ_7             (AMRC_IRQ_BASE + 15)
 
 
 // VC (VideoCore) GIC IRQ Ids: 96 through 159 - (Page 88 and 90 of BCM2711 ARM Peripherals)
-#define VC_GIC_BASE_IRQ (96)
-#define VC_GIC_SYSTEM_TIMER_IRQ_0 (VC_GIC_BASE_IRQ + 0) // 96
-#define VC_GIC_SYSTEM_TIMER_IRQ_1 (VC_GIC_BASE_IRQ + 1) // 97
-#define VC_GIC_SYSTEM_TIMER_IRQ_2 (VC_GIC_BASE_IRQ + 2) // 98
-#define VC_GIC_SYSTEM_TIMER_IRQ_3 (VC_GIC_BASE_IRQ + 3) // 99
+#define VC_GIC_BASE_IRQ                 (96)
+#define VC_GIC_SYSTEM_TIMER_IRQ_0       (VC_GIC_BASE_IRQ + 0) // 96
+#define VC_GIC_SYSTEM_TIMER_IRQ_1       (VC_GIC_BASE_IRQ + 1) // 97
+#define VC_GIC_SYSTEM_TIMER_IRQ_2       (VC_GIC_BASE_IRQ + 2) // 98
+#define VC_GIC_SYSTEM_TIMER_IRQ_3       (VC_GIC_BASE_IRQ + 3) // 99
 
-#define VC_GIC_DMA_IRQ_0 (VC_GIC_BASE_IRQ + 16)
-#define VC_GIC_DMA_IRQ_1 (VC_GIC_BASE_IRQ + 17)
-#define VC_GIC_DMA_IRQ_2 (VC_GIC_BASE_IRQ + 18)
-#define VC_GIC_DMA_IRQ_3 (VC_GIC_BASE_IRQ + 19)
-#define VC_GIC_DMA_IRQ_4 (VC_GIC_BASE_IRQ + 20)
-#define VC_GIC_DMA_IRQ_5 (VC_GIC_BASE_IRQ + 21)
-#define VC_GIC_DMA_IRQ_6 (VC_GIC_BASE_IRQ + 22)
-#define VC_GIC_DMA_IRQ_7n8 (VC_GIC_BASE_IRQ + 23)
-#define VC_GIC_DMA_IRQ_9n10 (VC_GIC_BASE_IRQ + 24)
-#define VC_GIC_DMA_IRQ_11 (VC_GIC_BASE_IRQ + 26)
-#define VC_GIC_DMA_IRQ_12 (VC_GIC_BASE_IRQ + 26)
-#define VC_GIC_DMA_IRQ_13 (VC_GIC_BASE_IRQ + 27)
-#define VC_GIC_DMA_IRQ_14 (VC_GIC_BASE_IRQ + 28)
-#define VC_GIC_DMA_IRQ_START VC_GIC_DMA_IRQ_0
-#define VC_GIC_DMA_IRQ_END VC_GIC_DMA_IRQ_14
+#define VC_GIC_USB_IRQ                  (VC_GIC_BASE_IRQ + 9)
+
+#define VC_GIC_DMA_IRQ_0                (VC_GIC_BASE_IRQ + 16)
+#define VC_GIC_DMA_IRQ_1                (VC_GIC_BASE_IRQ + 17)
+#define VC_GIC_DMA_IRQ_2                (VC_GIC_BASE_IRQ + 18)
+#define VC_GIC_DMA_IRQ_3                (VC_GIC_BASE_IRQ + 19)
+#define VC_GIC_DMA_IRQ_4                (VC_GIC_BASE_IRQ + 20)
+#define VC_GIC_DMA_IRQ_5                (VC_GIC_BASE_IRQ + 21)
+#define VC_GIC_DMA_IRQ_6                (VC_GIC_BASE_IRQ + 22)
+#define VC_GIC_DMA_IRQ_7n8              (VC_GIC_BASE_IRQ + 23)
+#define VC_GIC_DMA_IRQ_9n10             (VC_GIC_BASE_IRQ + 24)
+#define VC_GIC_DMA_IRQ_11               (VC_GIC_BASE_IRQ + 26)
+#define VC_GIC_DMA_IRQ_12               (VC_GIC_BASE_IRQ + 26)
+#define VC_GIC_DMA_IRQ_13               (VC_GIC_BASE_IRQ + 27)
+#define VC_GIC_DMA_IRQ_14               (VC_GIC_BASE_IRQ + 28)
+#define VC_GIC_DMA_IRQ_START            VC_GIC_DMA_IRQ_0
+#define VC_GIC_DMA_IRQ_END              VC_GIC_DMA_IRQ_14
 
 #define GIC_NUM_INTERRUPTS \
     (16 * 32) /* 16 ISEnable Registers and each register is 32 bits */
 
 /********************** ARM Interrupts ***************************/
-#define IRQ_BIT (1 << 7)
-#define FIQ_BIT (1 << 6)
-#define ENABLE_IRQ() asm volatile("msr daifclr, #2")
-#define DISABLE_IRQ() asm volatile("msr daifset, #2")
-#define ENABLE_FIQ() asm volatile("msr daifclr, #1")
-#define DISABLE_FIQ() asm volatile("msr daifset, #1")
-#define ENABLE_IRQ_FIQ() asm volatile("msr daifclr, #3")
-#define DISABLE_IRQ_FIQ() asm volatile("msr daifset, #3")
+#define IRQ_BIT               (1 << 7)
+#define FIQ_BIT               (1 << 6)
+#define ENABLE_IRQ()          asm volatile("msr daifclr, #2")
+#define DISABLE_IRQ()         asm volatile("msr daifset, #2")
+#define ENABLE_FIQ()          asm volatile("msr daifclr, #1")
+#define DISABLE_FIQ()         asm volatile("msr daifset, #1")
+#define ENABLE_IRQ_FIQ()      asm volatile("msr daifclr, #3")
+#define DISABLE_IRQ_FIQ()     asm volatile("msr daifset, #3")
 #define MAX_NESTED_INTERRUPTS 12
 
 #ifndef __ASSEMBLER__
