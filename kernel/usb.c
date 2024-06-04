@@ -52,28 +52,96 @@ static usb_status_t reset_ (void) {
     return eUSB_STATUS_OK;
 }
 
-static usb_status_t hcd_init_ (void) {
+static void flush_tx_fifo_ (u32 nfifo) {
+    u32 reset = 0;
+    reset |= (1 << 5);     // RESET_TX_FIFO_FLUSH
+    reset |= (nfifo << 6); // TX_FIFO_NUM_MASK
+    reset &= ~(0x1F << 6); // RESET_TX_FIFO_NUM_MASK
+    write32 (CORE_RESET_REG, reset);
+    s32 max_wait = 10;
+    /*
+     * RESET_TX_FIFO_FLUSH (1 << 0)
+     */
+    while ((read32 (CORE_RESET_REG) & (1 << 0)) == 0x0 && max_wait-- > 0) {
+        wait_ms (10);
+    }
+    wait_us (1); // Wait for 3 PHY clocks
 }
 
-static void usb_irq_handler (u32 irq_id) {
+static void flush_rx_fifo_ (void) {
+    u32 reset = 0;
+    reset |= (1 << 4);
+    write32 (CORE_RESET_REG, reset);
+    s32 max_wait = 10;
+    /*
+     * RESET_RX_FIFO_FLUSH (1 << 4)
+     */
+    while ((read32 (CORE_RESET_REG) & (1 << 4)) == 0x0 && max_wait-- > 0) {
+        wait_ms (10);
+    }
+    wait_us (1); // Wait for 3 PHY clocks
 }
 
-usb_status_t usb_init (void) {
-    u32 vendor_id = read32 (CORE_VENDOR_ID_REG);
-    if (vendor_id != 0x4F54280A) {
-        LOG_ERROR ("USB vendor id does not match: recvd [%u] != [%u]", vendor_id, 0x4F54280A);
-        return eUSB_STATUS_INIT_FAILED;
-    }
+static void enable_global_interrupts_ (void) {
+    u32 ahb = read32 (CORE_AHB_CFG_REG);
+    ahb |= (1 << 0); // GLOBAL INT
+    write32 (CORE_AHB_CFG_REG, ahb);
+}
 
-    if (power_on_ () != eUSB_STATUS_OK) {
-        LOG_ERROR ("USB failed to power on");
-        return eUSB_STATUS_POWERON_FAILED;
-    }
-    // Disable Interrupts for USB
-    write32 (CORE_AHB_CFG_REG, read32 (CORE_AHB_CFG_REG) & ~(1 << 0));
-    // set interrupt handler for USB
-    gic_enable_interrupt (VC_GIC_USB_IRQ, &usb_irq_handler);
+static void enable_common_interrupts_ (void) {
+    // Clear all pending interrupts
+    write32 (CORE_INT_STATUS_REG, 0xFFFFFFFF);
+}
 
+static void enable_host_interrupts_ (void) {
+    u32 int_mask = 0;
+    // Disable all interrupts
+    write32 (CORE_INT_STATUS_REG, int_mask);
+
+    enable_common_interrupts_ ();
+
+    int_mask = read32 (CORE_INT_STATUS_REG);
+    int_mask |= (1 << 25); // HC_INTR
+    int_mask |= (1 << 24); // PORT_INTR
+    int_mask |= (1 << 29); // DISCONNECT_INTR
+    write32 (CORE_INT_STATUS_REG, int_mask);
+}
+
+static usb_status_t host_init_ (void) {
+    // Restart the physical clock
+    write32 (USB_POWER, 0x0);
+
+    u32 host_config = read32 (HOST_CFG_REG);
+    host_config &= ~(3 << 0); // FSLS PCLK SEL Mask
+
+    u32 usb_config = read32 (CORE_USB_CFG_REG);
+    u32 hw_config  = read32 (CORE_HW_CFG2_REG);
+    if (((hw_config >> 6) & 3) == (1 << 1) && ((hw_config >> 8) & 3) == (1 << 0)) {
+        host_config |= (1 << 0); // FSLS_PCLK_SEL_48_MHZ
+    } else {
+        host_config |= (0 << 0); // FSLS_PCLK_SEL_30_60_MHZ
+    }
+    write32 (HOST_CFG_REG, host_config);
+    // Flush all TX FIFOs
+    flush_tx_fifo_ (0x10);
+    flush_rx_fifo_ ();
+
+    u32 host_port = read32 (HOST_PORT_REG);
+    host_port &= ~(1 << 1); // PORT_CONNECT_CHANGED
+    host_port &= ~(1 << 2); // PORT_ENABLE
+    host_port &= ~(1 << 3); // ENABLE_CHANGED
+    host_port &= ~(1 << 5); // OVERCURRENT_CHANGED
+    /*
+     * PORT_POWER (1 << 12)
+     */
+    if (!(host_port & (1 << 12))) {
+        host_port |= (1 << 12);
+        write32 (HOST_PORT_REG, host_port);
+    }
+    return eUSB_STATUS_OK;
+}
+
+static usb_status_t core_init (void) {
     u32 usb_config = read32 (CORE_USB_CFG_REG);
     usb_config &= ~(1 << 20); // ULPI_EXT_VBUS_DRV
     usb_config &= ~(1 << 22); // TERM_SEL_DL_PULSE
@@ -113,6 +181,42 @@ usb_status_t usb_init (void) {
     usb_config &= ~(1 << 8); // disable srp capable
     write32 (CORE_USB_CFG_REG, usb_config);
 
-    // Clear all pending interrupts
-    write32 (CORE_INT_STATUS_REG, 0xFFFFFFFF);
+    enable_common_interrupts_ ();
+    return eUSB_STATUS_OK;
+}
+
+static void usb_irq_handler (u32 irq_id) {
+}
+
+usb_status_t usb_init (void) {
+    usb_status_t status = eUSB_STATUS_OK;
+    u32 vendor_id       = read32 (CORE_VENDOR_ID_REG);
+    if (vendor_id != 0x4F54280A) {
+        LOG_ERROR ("USB vendor id does not match: recvd [%X] != [%X]", vendor_id, 0x4F54280A);
+        return eUSB_STATUS_INIT_FAILED;
+    }
+
+    status = power_on_ ();
+    if (status != eUSB_STATUS_OK) {
+        LOG_ERROR ("USB failed to power on");
+        return status;
+    }
+    // Disable Interrupts for USB
+    write32 (CORE_AHB_CFG_REG, read32 (CORE_AHB_CFG_REG) & ~(1 << 0));
+    // set interrupt handler for USB
+    gic_enable_interrupt (VC_GIC_USB_IRQ, &usb_irq_handler);
+
+    status = core_init ();
+    if (status != eUSB_STATUS_OK) {
+        LOG_ERROR ("USB failed to init core");
+        return status;
+    }
+    enable_global_interrupts_ ();
+
+    status = host_init_ ();
+    if (status != eUSB_STATUS_OK) {
+        LOG_ERROR ("USB failed to init core");
+        return status;
+    }
+    return eUSB_STATUS_OK;
 }

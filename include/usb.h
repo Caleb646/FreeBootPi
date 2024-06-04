@@ -20,6 +20,9 @@
 #define CORE_VENDOR_ID_REG  (USB_CORE_BASE + 0x040)
 #define CORE_HW_CFG2_REG    (USB_CORE_BASE + 0x048)
 
+#define HOST_CFG_REG        (USB_HOST_BASE + 0x000)
+#define HOST_PORT_REG       (USB_HOST_BASE + 0x040)
+
 #ifndef __ASSEMBLER__
 
 typedef enum usb_status_t {
@@ -31,8 +34,8 @@ typedef enum usb_status_t {
 
 
 usb_status_t usb_init (void);
-usb_status_t hcd_init_ (void);
-usb_status_t power_on_ (void);
+// usb_status_t hcd_init_ (void);
+// usb_status_t power_on_ (void);
 
 #endif // __ASSEMBLER__
 
