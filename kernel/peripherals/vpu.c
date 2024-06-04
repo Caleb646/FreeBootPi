@@ -28,24 +28,12 @@ static u32 volatile GCC_ALIGN_ADDR (16) cmd_buffer_[VPU_CMD_BUFFER_SIZE] = { 0 }
 
 // https://github.com/raspberrypi/firmware/wiki/Mailbox-property-interface
 vpu_status_t vpu_call (u32 (*buffer_ptr)[VPU_CMD_BUFFER_SIZE], u8 channel) {
+    memset ((void*)cmd_buffer_, 0, sizeof (cmd_buffer_));
     memcpy (*buffer_ptr, sizeof (cmd_buffer_), (void*)cmd_buffer_);
-    // buffer addresses are not 64 bits but this makes
-    // the compiler happy.
-    u64 buff_addr = (u64)cmd_buffer_;
-    if ((buff_addr & 0xF) > 0) {
-        LOG_ERROR ("VPU CMD Buffer is NOT 16 byte aligned. Address [0x%X]", buff_addr);
-        return 0;
-    } else if (buff_addr > 0x3FFFFFF0) {
-        // 0011 1111 1111 1111 1111 1111 1111 0000
-        // Upper 2 bits are for VPU cache control.
-        // Bottom 4 bits are always zero.
-        LOG_ERROR ("VPU CMD Buffer address is out of bounds [0x%X]", buff_addr);
-        return 0;
-    } else if (channel > 0xF) {
-        LOG_ERROR ("Max Channel value is 4 bits in size. Got [%u]", channel);
+    if (channel > 0xF) {
+        LOG_ERROR ("Max Channel is 4 bits in size. Got [%u]", channel);
         return 0;
     }
-    u32 buff_addr_w_channel = ARM_TO_VPU_BUS_ADDR (buff_addr) | channel;
     // Wait until we can write
     while (VPU_IS_MBOX_FULL) {
     }
@@ -53,8 +41,8 @@ vpu_status_t vpu_call (u32 (*buffer_ptr)[VPU_CMD_BUFFER_SIZE], u8 channel) {
     clean_invalidate_data_cache_vaddr ((uintptr_t)cmd_buffer_, sizeof (cmd_buffer_));
     // Write the address of our buffer
     // to the mailbox with the channel appended
+    u32 buff_addr_w_channel = ARM_TO_VPU_BUS_ADDR (cmd_buffer_) | channel;
     write32 (VPU_MBOX_WRITE, buff_addr_w_channel);
-    // DATA_SYNC_BARRIER_FS_ANY ();
     while (1) {
         while (VPU_IS_MBOX_EMPTY) {
         }

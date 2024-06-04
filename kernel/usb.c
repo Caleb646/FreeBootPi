@@ -3,15 +3,20 @@
 #include "peripherals/timer.h"
 #include "peripherals/vpu.h"
 
+typedef struct usb_info_t {
+    u32 nchannels;
+} usb_info_t;
+
+static usb_info_t usb_info_ = { 0 };
+
 static usb_status_t power_on_ (void) {
     /*
      * bit 0 = if 1 turn power on
      * bit 1 = if 1 wait for device to power on
      */
-    u32 flags = (1 << 0) | (1 << 1);
-    VPU_CMB_BUFF_INIT (VPU_MBOX_TAG_SETPOWER, VPU_DEV_ID_USB_HCD, flags);
+    VPU_CMB_BUFF_INIT (VPU_MBOX_TAG_SETPOWER, 8, 8, VPU_DEV_ID_USB_HCD, (1 << 0) | (1 << 1));
     vpu_status_t status = vpu_call (&cmd_buffer, VPU_MBOX_CH_PROP);
-    u32 dev_state       = cmd_buffer[3];
+    u32 dev_state       = cmd_buffer[6];
     if (status != eVPU_STATUS_OK) {
         return eUSB_STATUS_POWERON_FAILED;
     }
@@ -30,24 +35,22 @@ static usb_status_t power_on_ (void) {
 static usb_status_t reset_ (void) {
     s32 max_wait = 100;
     // Wait for AHB master idle state
-    while ((read32 (CORE_RESET_REG) & (1 << 31)) == 0x0 && max_wait-- > 0) {
+    while ((read32 (CORE_RESET_REG) & (1 << 31)) == 0x0) {
         wait_ms (10);
+        if (max_wait-- <= 0) {
+            return eUSB_STATUS_RESET_FAILED;
+        }
     }
-
-    if (max_wait <= 0) {
-        return eUSB_STATUS_RESET_FAILED;
-    }
-
     max_wait = 100;
     write32 (CORE_RESET_REG, read32 (CORE_RESET_REG) | (1 << 0));
     // wait for soft reset
-    while ((read32 (CORE_RESET_REG) & (1 << 0)) == 0x0 && max_wait-- > 0) {
-        wait_ms (10);
-    }
-
-    if (max_wait <= 0) {
-        return eUSB_STATUS_RESET_FAILED;
-    }
+    // while ((read32 (CORE_RESET_REG) & (1 << 0)) == 0x0) {
+    //     LOG_INFO ("USB waiting %X", read32 (CORE_RESET_REG));
+    //     wait_ms (100);
+    //     if (max_wait-- <= 0) {
+    //         return eUSB_STATUS_RESET_FAILED;
+    //     }
+    // }
     wait_ms (100);
     return eUSB_STATUS_OK;
 }
@@ -116,7 +119,7 @@ static usb_status_t host_init_ (void) {
 
     u32 usb_config = read32 (CORE_USB_CFG_REG);
     u32 hw_config  = read32 (CORE_HW_CFG2_REG);
-    if (((hw_config >> 6) & 3) == (1 << 1) && ((hw_config >> 8) & 3) == (1 << 0)) {
+    if (((hw_config >> 6) & 3) == (1 << 1) && ((hw_config >> 8) & 3) == (1 << 0) && (usb_config & (1 << 17))) {
         host_config |= (1 << 0); // FSLS_PCLK_SEL_48_MHZ
     } else {
         host_config |= (0 << 0); // FSLS_PCLK_SEL_30_60_MHZ
@@ -138,6 +141,7 @@ static usb_status_t host_init_ (void) {
         host_port |= (1 << 12);
         write32 (HOST_PORT_REG, host_port);
     }
+    enable_host_interrupts_ ();
     return eUSB_STATUS_OK;
 }
 
@@ -168,7 +172,8 @@ static usb_status_t core_init (void) {
     }
     write32 (CORE_USB_CFG_REG, usb_config);
 
-    u32 nchannels = ((hw_config >> 14) & 0xF) + 1;
+    u32 nchannels       = ((hw_config >> 14) & 0xF) + 1;
+    usb_info_.nchannels = nchannels;
 
     u32 ahb_config = read32 (CORE_AHB_CFG_REG);
     ahb_config |= (1 << 5);  // dmaenable
@@ -189,18 +194,21 @@ static void usb_irq_handler (u32 irq_id) {
 }
 
 usb_status_t usb_init (void) {
+    // LOG_INFO ("USB beginning setup");
     usb_status_t status = eUSB_STATUS_OK;
     u32 vendor_id       = read32 (CORE_VENDOR_ID_REG);
     if (vendor_id != 0x4F54280A) {
         LOG_ERROR ("USB vendor id does not match: recvd [%X] != [%X]", vendor_id, 0x4F54280A);
         return eUSB_STATUS_INIT_FAILED;
     }
+    // LOG_INFO ("USB Vendor ID [%X]", vendor_id);
 
     status = power_on_ ();
     if (status != eUSB_STATUS_OK) {
         LOG_ERROR ("USB failed to power on");
         return status;
     }
+    // LOG_INFO ("USB powered on");
     // Disable Interrupts for USB
     write32 (CORE_AHB_CFG_REG, read32 (CORE_AHB_CFG_REG) & ~(1 << 0));
     // set interrupt handler for USB
@@ -211,6 +219,7 @@ usb_status_t usb_init (void) {
         LOG_ERROR ("USB failed to init core");
         return status;
     }
+    // LOG_INFO ("USB core setup");
     enable_global_interrupts_ ();
 
     status = host_init_ ();
@@ -218,5 +227,6 @@ usb_status_t usb_init (void) {
         LOG_ERROR ("USB failed to init core");
         return status;
     }
+    LOG_INFO ("USB successfully setup Vendor ID [%X]", vendor_id);
     return eUSB_STATUS_OK;
 }

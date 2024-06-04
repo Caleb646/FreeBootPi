@@ -35,13 +35,24 @@
 
 #define VPU_CMD_BUFFER_SIZE           36
 
+
+#define NUMARGS32(...)                (sizeof ((u32[]){ __VA_ARGS__ }) / sizeof (u32))
 /*
  * \brief Creates a u32 `cmd_buffer` array on the stack, makes it the correct
  * size, and adds the appropriate starting and ending tags
+ *
+ * Tag format:
+ *  cmd_buffer[i] = size of the entire buffer
+ *  cmd_buffer[i+1] = 4 byte tag id
+ *  cmd_buffer[i+2] = request length (4 bytes, 8 bytes....)
+ *  cmd_buffer[i+3] = response length (4, 8 bytes....)
+ *  cmd_buffer[i+4] = 1st 4 bytes of request data
+ *  cmd_buffer[i+n] = next 4 bytes of request data.....
+ *  cmd_buffer[i+n+1] = 4 byte ending tag
  */
-#define VPU_CMB_BUFF_INIT(...)                                     \
-    u32 cmd_buffer[VPU_CMD_BUFFER_SIZE] = { VPU_MBOX_REQUEST_CODE, \
-                                            __VA_ARGS__, VPU_MBOX_TAG_LAST };
+#define VPU_CMB_BUFF_INIT(...)                                                            \
+    u32 cmd_buffer[VPU_CMD_BUFFER_SIZE] = { (NUMARGS32 (__VA_ARGS__) + 3) * sizeof (u32), \
+                                            VPU_MBOX_REQUEST_CODE, __VA_ARGS__, VPU_MBOX_TAG_LAST }
 
 typedef enum vpu_status_t {
     eVPU_STATUS_FAILED = 0,

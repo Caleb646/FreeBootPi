@@ -8,6 +8,7 @@
 #include "peripherals/uart.h"
 #include "screen.h"
 #include "sync.h"
+#include "usb.h"
 
 const char* entry_error_messages[] = {
     "SYNC_INVALID_EL1t",   "IRQ_INVALID_EL1t",
@@ -37,9 +38,9 @@ void kernel_main (void) {
     // Data Cache should be invalidated on reset and startup.
     // L1 cache for secondary cores should be as well.
     cache_invalidate ();
-
     mem_init (NULLPTR);
-    // enable_mmu ();
+
+    usb_init ();
 
     dma_init (NULLPTR);
     screen_init ();
