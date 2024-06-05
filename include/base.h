@@ -135,6 +135,7 @@ void assertion_failed (char const* fname, unsigned int line_num, char* fmt, ...)
 
 typedef signed char s8;
 typedef unsigned char u8;
+typedef unsigned short u16;
 typedef unsigned int u32;
 typedef long unsigned int u64;
 typedef u64 size_t;
@@ -145,6 +146,7 @@ typedef void (*irq_handler_t) (u32 irq_id);
 
 STATIC_ASSERT ((sizeof (u8) == 1));
 STATIC_ASSERT ((sizeof (s8) == 1));
+STATIC_ASSERT ((sizeof (u16) == 2));
 STATIC_ASSERT ((sizeof (u32) == 4));
 STATIC_ASSERT ((sizeof (u64) == 8));
 STATIC_ASSERT ((sizeof (s64) == 8));

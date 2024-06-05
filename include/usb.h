@@ -27,6 +27,7 @@
 
 typedef enum usb_status_t {
     eUSB_STATUS_OK = 1,
+    eUSB_STATUS_ERROR,
     eUSB_STATUS_INIT_FAILED,
     eUSB_STATUS_POWERON_FAILED,
     eUSB_STATUS_RESET_FAILED
