@@ -97,6 +97,8 @@ regs Kusti, 23.10.2004
 */
 
 #include <stdarg.h>
+#include <stdbool.h>
+
 void init_printf (void* putp, void (*putf) (void*, char));
 void tfp_printf (char* fmt, ...);
 void tfp_sprintf (char* s, char* fmt, ...);
@@ -168,6 +170,7 @@ extern u32 __kernel_end;
 #define REG_PTR32(reg_addr)       *((u32 volatile*)reg_addr)
 #define REG_PTR64(reg_addr)       *((u64 volatile*)reg_addr)
 
+#define U32_MAX                   0xFFFFFFFF
 #define FALSE                     0
 
 #define GCC_NODISCARD             __attribute__ ((__warn_unused_result__))

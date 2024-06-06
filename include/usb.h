@@ -22,6 +22,13 @@
 
 #define HOST_CFG_REG        (USB_HOST_BASE + 0x000)
 #define HOST_PORT_REG       (USB_HOST_BASE + 0x040)
+#define HOST_CHAN_CHARACTER_REG(chan_id) \
+    (USB_HOST_BASE + 0x100 + (chan_id * 0x20))
+#define HOST_CHAN_INT_REG(chan_id) (USB_HOST_BASE + 0x10C + (chan_id * 0x20))
+#define HOST_CHAN_TRANSFER_INFO_REG(chan_id) \
+    (USB_HOST_BASE + 0x110 + (chan_id * 0x20))
+#define HOST_CHAN_DMA_ADDR_REG(chan_id) \
+    (USB_HOST_BASE + 0x114 + (chan_id * 0x20))
 
 #ifndef __ASSEMBLER__
 
