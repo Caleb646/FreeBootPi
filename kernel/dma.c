@@ -468,7 +468,7 @@ dma_memcpy (uintptr_t src_addr, uintptr_t dest_addr, size_t transfer_length, dma
     return status;
 }
 
-static void dma_irq_handler (u32 irq_id) {
+static void dma_irq_handler (u32 irq_id, void* context) {
     /*
      * 3 Possible states when the irq handler is called:
      *   1. The 1 and only control block has finished its transfer or
@@ -492,7 +492,7 @@ static void dma_irq_handler (u32 irq_id) {
          * the last of several control blocks has finished.
          */
         if (next_cb_addr == 0) {
-            LOG_INFO ("DMA Channel [%u] finished transfer with status [0x%X]", channel_id, status);
+            // LOG_INFO ("DMA Channel [%u] finished transfer with status [0x%X]", channel_id, status);
             dma_delete_channel (channel_id);
             return;
         }
@@ -547,7 +547,7 @@ s32 dma_init (dma_config_s* config) {
      * Enable DMA Interrupts on the GIC and register a handler
      */
     for (u32 i = VC_GIC_DMA_IRQ_START; i <= VC_GIC_DMA_IRQ_END; ++i) {
-        gic_enable_interrupt (i, &dma_irq_handler);
+        gic_enable_interrupt (i, &dma_irq_handler, NULLPTR);
     }
 
     DATA_MEMORY_BARRIER_OUTER_STORES ();

@@ -54,7 +54,6 @@ typedef struct timer_s {
 } timer_s;
 
 u32 get_arm_local_timer_freq (void);
-void sys_timer_irq_handler (u32 irq_id);
 s32 timer_init (u32);
 u64 get_sys_time_ms (void);
 u64 get_sys_time_s (void);

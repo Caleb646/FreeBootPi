@@ -1,6 +1,7 @@
 #include "irq.h"
 
-static irq_handler_t volatile gic_irq_handlers[ARM_NUM_CORES][GIC_NUM_INTERRUPTS];
+static irq_handler_t volatile irq_handlers_[ARM_NUM_CORES][GIC_NUM_INTERRUPTS];
+static void* volatile irq_contexts_[ARM_NUM_CORES][GIC_NUM_INTERRUPTS];
 
 /*
  * \brief	Returns ARM core interrupt status
@@ -53,17 +54,18 @@ void gic_assign_target (u32 irq_id, u32 cpu_id) {
  *  Expects that the irq has already been enabled on the GIC and the calling cpu
  * core has been assigned as the target.
  */
-void gic_assign_irq_handler (u32 irq_id, irq_handler_t handler) {
-    gic_irq_handlers[get_arm_core_id ()][irq_id] = handler;
+void gic_assign_irq_handler (u32 irq_id, irq_handler_t handler, void* context) {
+    irq_handlers_[get_arm_core_id ()][irq_id] = handler;
+    irq_contexts_[get_arm_core_id ()][irq_id] = context;
 }
 
 /*
  * \brief Enables the irq on the GIC and assigns the calling cpu core as the
  * target of the interrupt.
  */
-void gic_enable_interrupt (u32 irq, irq_handler_t handler) {
+void gic_enable_interrupt (u32 irq, irq_handler_t handler, void* context) {
     // Store handler for use later
-    gic_assign_irq_handler (irq, handler);
+    gic_assign_irq_handler (irq, handler, context);
     // Assign this irq to the calling cpu core
     gic_assign_target (irq, get_arm_core_id ());
 
@@ -74,7 +76,7 @@ void gic_enable_interrupt (u32 irq, irq_handler_t handler) {
     write32 (enable_register, read32 (enable_register) | (1 << bit_offset));
 }
 
-void gic_general_irq_handler (u32 irq_id) {
+static void gic_general_irq_handler (u32 irq_id, void* context) {
     LOG_DEBUG ("Interrupt [%u] for core [%u] does NOT have a handler", irq_id, get_arm_core_id ());
 }
 
@@ -119,7 +121,8 @@ s32 gic_init (void) {
         /* Initialize all handlers to the general handler */
         for (u32 cid = 0; cid < ARM_NUM_CORES; ++cid) {
             for (u32 i = 0; i < GIC_NUM_INTERRUPTS; ++i) {
-                gic_irq_handlers[cid][i] = &gic_general_irq_handler;
+                irq_handlers_[cid][i] = &gic_general_irq_handler;
+                irq_contexts_[cid][i] = NULLPTR;
             }
         }
         write32 (GICD_CTLR, GICD_CTLR_ENABLE);
@@ -142,7 +145,9 @@ void handle_irq (void) {
     u32 irq_ack_reg = read32 (GICC_IAR);
     u32 irq         = irq_ack_reg & 0x3FF;
     if (irq < GIC_NUM_INTERRUPTS) {
-        gic_irq_handlers[get_arm_core_id ()][irq](irq);
+        u32 core_id   = get_arm_core_id ();
+        void* context = irq_contexts_[core_id][irq];
+        irq_handlers_[get_arm_core_id ()][irq](irq, context);
         write32 (GICC_EOIR, irq_ack_reg);
     } else {
         LOG_ERROR ("Received IRQ ID [%u] outside acceptable range", irq);

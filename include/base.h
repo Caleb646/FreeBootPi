@@ -118,6 +118,12 @@ void tfp_format (void* putp, void (*putf) (void*, char), char* fmt, va_list va);
         printf (__VA_ARGS__);   \
         printf ("\r\n");        \
     } while (0)
+#define LOG_WARN(...)          \
+    do {                       \
+        printf ("[WARN] -- "); \
+        printf (__VA_ARGS__);  \
+        printf ("\r\n");       \
+    } while (0)
 #define LOG_ERROR(...)          \
     do {                        \
         printf ("[ERROR] -- "); \
@@ -144,7 +150,7 @@ typedef u64 size_t;
 typedef signed int s32;
 typedef long signed int s64;
 typedef u64 uintptr_t;
-typedef void (*irq_handler_t) (u32 irq_id);
+typedef void (*irq_handler_t) (u32 irq_id, void* context);
 
 STATIC_ASSERT ((sizeof (u8) == 1));
 STATIC_ASSERT ((sizeof (s8) == 1));
@@ -173,8 +179,11 @@ extern u32 __kernel_end;
 #define U32_MAX                   0xFFFFFFFF
 #define FALSE                     0
 
+#define CACHE_LINE_NBYTES         64
+
 #define GCC_NODISCARD             __attribute__ ((__warn_unused_result__))
 #define GCC_ALIGN_ADDR(balign)    __attribute__ ((aligned (balign)))
+#define GCC_CACHE_ALIGNED         GCC_ALIGN_ADDR (CACHE_LINE_NBYTES)
 #define GCC_PACKED                __attribute__ ((packed))
 
 

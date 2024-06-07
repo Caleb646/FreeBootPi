@@ -15,7 +15,7 @@ u32 get_arm_local_timer_freq (void) {
     return freq;
 }
 
-void sys_timer_irq_handler (u32 irq_id) {
+static void sys_timer_irq_handler (u32 irq_id, void* context) {
     // LOG_INFO("Received Timer IRQ [%u]", timer.cur_ticks + 1);
     enter_critical (IRQ_DISABLED_FIQ_DISABLED_TARGET);
 
@@ -46,7 +46,7 @@ s32 timer_init (u32 timer_irq_id) {
     timer.irq_id       = timer_irq_id;
 
     /* Enable Timer Interrupt on GIC and Set Handler */
-    gic_enable_interrupt (timer_irq_id, &sys_timer_irq_handler);
+    gic_enable_interrupt (timer_irq_id, &sys_timer_irq_handler, NULLPTR);
 
     /* Put new updated compare value in timer compare register */
     write32 (

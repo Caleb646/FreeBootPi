@@ -116,6 +116,10 @@ void clean_data_cache_vaddr (uintptr_t vaddr, u64 size) {
 }
 
 void invalidate_data_cache_vaddr (uintptr_t vaddr, u64 size) {
+    if ((vaddr % L2_CACHE_LINE_LENGTH) != 0 || (size % L2_CACHE_LINE_LENGTH) != 0) {
+        LOG_WARN (
+        "Cache invalidate is being performed on an unaligned vaddr or size");
+    }
     while (1) {
         asm volatile("dc ivac, %0" ::"r"(vaddr) : "memory");
         if (size <= L2_CACHE_LINE_LENGTH) {

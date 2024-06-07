@@ -31,9 +31,9 @@
 #define VPU_MBOX_CH_COUNT             7
 #define VPU_MBOX_CH_PROP              8 // Channel 8: Request from ARM for response by VC
 
-#define VPU_DEV_ID_USB_HCD            0x3
+#define VPU_DEV_ID_USB_HCD            3
 
-#define VPU_CMD_BUFFER_SIZE           36
+#define VPU_CMD_BUFFER_SIZE           64
 
 
 #define NUMARGS32(...)                (sizeof ((u32[]){ __VA_ARGS__ }) / sizeof (u32))

@@ -17,5 +17,6 @@
     },
     "editor.formatOnSave": true,
     "editor.defaultFormatter": "xaver.clang-format",
-    "clang-format.style": "file"
+    "clang-format.style": "file",
+    "workbench.editor.wrapTabs": true
 }

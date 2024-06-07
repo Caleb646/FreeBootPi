@@ -523,19 +523,19 @@
 #define VC_GIC_DMA_IRQ_START            VC_GIC_DMA_IRQ_0
 #define VC_GIC_DMA_IRQ_END              VC_GIC_DMA_IRQ_14
 
-#define GIC_NUM_INTERRUPTS \
-    (16 * 32) /* 16 ISEnable Registers and each register is 32 bits */
+/* 16 ISEnable Registers and each register is 32 bits */
+#define GIC_NUM_INTERRUPTS              (16 * 32)
 
 /********************** ARM Interrupts ***************************/
-#define IRQ_BIT               (1 << 7)
-#define FIQ_BIT               (1 << 6)
-#define ENABLE_IRQ()          asm volatile("msr daifclr, #2")
-#define DISABLE_IRQ()         asm volatile("msr daifset, #2")
-#define ENABLE_FIQ()          asm volatile("msr daifclr, #1")
-#define DISABLE_FIQ()         asm volatile("msr daifset, #1")
-#define ENABLE_IRQ_FIQ()      asm volatile("msr daifclr, #3")
-#define DISABLE_IRQ_FIQ()     asm volatile("msr daifset, #3")
-#define MAX_NESTED_INTERRUPTS 12
+#define IRQ_BIT                         (1 << 7)
+#define FIQ_BIT                         (1 << 6)
+#define ENABLE_IRQ()                    asm volatile("msr daifclr, #2")
+#define DISABLE_IRQ()                   asm volatile("msr daifset, #2")
+#define ENABLE_FIQ()                    asm volatile("msr daifclr, #1")
+#define DISABLE_FIQ()                   asm volatile("msr daifset, #1")
+#define ENABLE_IRQ_FIQ()                asm volatile("msr daifclr, #3")
+#define DISABLE_IRQ_FIQ()               asm volatile("msr daifset, #3")
+#define MAX_NESTED_INTERRUPTS           12
 
 #ifndef __ASSEMBLER__
 
@@ -545,10 +545,9 @@ u64 get_daif_flags (void);
 void set_daif_flags (u64);
 
 u32 gic_get_cpu_id (void);
-void gic_assign_irq_handler (u32 irq_id, irq_handler_t handler);
-void gic_enable_interrupt (u32 irq, irq_handler_t handler);
+void gic_assign_irq_handler (u32 irq_id, irq_handler_t handler, void* context);
+void gic_enable_interrupt (u32 irq, irq_handler_t handler, void* context);
 void gic_assign_target (u32 irq_id, u32 gic_cpu_id);
-void gic_general_irq_handler (u32 irq_id);
 s32 gic_init (void);
 
 s32 irq_init (void);

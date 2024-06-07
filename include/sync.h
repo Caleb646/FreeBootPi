@@ -19,6 +19,7 @@
 #define DATA_MEMORY_BARRIER_OUTER_STORES() \
     asm volatile("dmb OSHST" ::: "memory")
 
+#define DATA_MEMORY_BARRIER_FS_ANY()    asm volatile("dmb SY" ::: "memory")
 #define DATA_MEMORY_BARRIER_FS_STORES() asm volatile("dmb ST" ::: "memory")
 #define DATA_MEMORY_BARRIER_FS_LOADS()  asm volatile("dmb LD" ::: "memory")
 

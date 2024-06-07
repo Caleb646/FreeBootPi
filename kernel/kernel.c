@@ -40,7 +40,10 @@ void kernel_main (void) {
     cache_invalidate ();
     mem_init (NULLPTR);
 
-    usb_init ();
+    // wait_ms (100);
+
+    hci_device_t* host = hci_device_create ();
+    hci_init (host);
 
     dma_init (NULLPTR);
     screen_init ();
