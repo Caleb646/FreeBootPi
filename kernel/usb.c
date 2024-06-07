@@ -91,6 +91,18 @@ static void flush_rx_fifo_ (void) {
     wait_us (1); // Wait for 3 PHY clocks
 }
 
+static void enable_channel_interrupts (u32 chan) {
+    u32 all_chan_interrupt = read32 (HOST_ALLCHAN_INT_MASK_REG);
+    all_chan_interrupt |= (1 << chan);
+    write32 (HOST_ALLCHAN_INT_MASK_REG, all_chan_interrupt);
+}
+
+// static void disable_channel_interrupts (u32 chan) {
+//     u32 all_chan_interrupt = read32 (HOST_ALLCHAN_INT_MASK_REG);
+//     all_chan_interrupt &= ~(1 << chan);
+//     write32 (HOST_ALLCHAN_INT_MASK_REG, all_chan_interrupt);
+// }
+
 static void enable_global_interrupts_ (void) {
     u32 ahb = read32 (CORE_AHB_CFG_REG);
     ahb |= (1 << 0); // GLOBAL INT
@@ -112,7 +124,7 @@ static void enable_host_interrupts_ (void) {
     int_mask |= (1 << 25); // HC_INTR
     int_mask |= (1 << 24); // PORT_INTR
     int_mask |= (1 << 29); // DISCONNECT_INTR
-    write32 (CORE_INT_STATUS_REG, int_mask);
+    write32 (CORE_INT_MASK_REG, int_mask);
 }
 
 static usb_status_t host_init_ (hci_device_t* host) {
@@ -237,6 +249,8 @@ static usb_speed_t hci_get_port_speed (void) {
 
 static void hci_start_channel (hci_device_t* host, stage_data_t* stage_data) {
     u32 chan = stage_data->nchannel;
+    // Enable interrupts for this channel
+    enable_channel_interrupts (chan);
     // Reset all pending channel interrupts
     write32 (HOST_CHAN_INT_REG (chan), U32_MAX);
     // Set the transfer size in bytes, in number of packets, and the PID
@@ -251,6 +265,9 @@ static void hci_start_channel (hci_device_t* host, stage_data_t* stage_data) {
     write32 (HOST_CHAN_DMA_ADDR_REG (chan), ARM_TO_VPU_BUS_ADDR (buf_addr));
     // Make transfer buffer coherent with DMA
     clean_invalidate_data_cache_vaddr (buf_addr, stage_data->transfer_size_nbytes);
+
+    // TODO: do I need split control???
+    write32 (HOST_CHAN_SPLIT_CTRL_REG (chan), 0);
 
     u32 character = read32 (HOST_CHAN_CHARACTER_REG (chan));
     character &= ~0x7FF;
@@ -304,7 +321,8 @@ static void hci_start_channel (hci_device_t* host, stage_data_t* stage_data) {
     // Clear error bits
     chan_interrupt_mask |=
     ((1 << 2) | (1 << 3) | (1 << 7) | (1 << 8) | (1 << 9) | (1 << 10));
-    write32 (HOST_CHAN_INT_REG (chan), chan_interrupt_mask);
+    write32 (HOST_CHAN_INT_MASK_REG (chan), chan_interrupt_mask);
+    // write32 (HOST_CHAN_INT_MASK_REG (chan), U32_MAX);
     /*
      * Begin the transaction
      */

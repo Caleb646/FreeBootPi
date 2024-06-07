@@ -483,7 +483,7 @@ static void* translation_tbl_init_ (void) {
         return NULLPTR;
     }
 
-    LOG_DEBUG ("MMU Level 2 Table Address [0x%X]", (uintptr_t)table_ptr);
+    // LOG_DEBUG ("MMU Level 2 Table Address [0x%X]", (uintptr_t)table_ptr);
     for (uintptr_t entry_idx = 0; entry_idx < MMU_LEVEL2_ENTRIES; ++entry_idx) {
         addr = entry_idx * MMU_LEVEL3_ENTRIES * PAGE_SIZE;
         /*
@@ -506,7 +506,7 @@ static void* translation_tbl_init_ (void) {
         desc->ap_tbl        = 0;
         desc->ns_tbl        = 0;
     }
-    LOG_INFO ("MMU Finished Creating Page Tables");
+    // LOG_INFO ("MMU Finished Creating Page Tables");
     DATA_SYNC_BARRIER_FS_ANY ();
     return (void*)table_ptr;
 }
@@ -520,11 +520,11 @@ static void mmu_init (void) {
     mair |= MAIR_NORMAL_NO_CACHE << (MAIR_NORMAL_NO_CACHE_IDX * 8);
     asm volatile("msr mair_el1, %0" ::"r"(mair));
 
-    LOG_INFO ("MMU Setup MAIR Register [0x%X%X]", (mair >> 32), mair);
+    // LOG_INFO ("MMU Setup MAIR Register [0x%X%X]", (mair >> 32), mair);
 
     asm volatile("msr ttbr0_el1, %0" ::"r"((uintptr_t)tran_tbl));
 
-    LOG_INFO ("MMU Setup ttbr0_el1 Register");
+    // LOG_INFO ("MMU Setup ttbr0_el1 Register");
 
     u64 tcr;
     asm volatile("mrs %0, tcr_el1" : "=r"(tcr));
@@ -546,7 +546,7 @@ static void mmu_init (void) {
     tcr |= TCR_TNSZ_64GB (0);
     asm volatile("msr tcr_el1, %0" ::"r"(tcr));
 
-    LOG_INFO ("MMU Setup tcr Register [0x%X%X]", (tcr >> 32), tcr);
+    // LOG_INFO ("MMU Setup tcr Register [0x%X%X]", (tcr >> 32), tcr);
 
     // Force changes to be seen before MMU is enabled
     ISB ();
@@ -558,7 +558,7 @@ static void mmu_init (void) {
     sctlr |= SCTLR_D_CACHE_ENABLED;
     sctlr |= SCTLR_MMU_ENABLED;
 
-    LOG_INFO ("MMU About to Enable");
+    // LOG_INFO ("MMU About to Enable");
     asm volatile("msr sctlr_el1, %0" ::"r"(sctlr));
     // u64 par;
     // asm volatile("AT S12E1R, %0" ::"r"(0x80000));

@@ -26,6 +26,8 @@
 #define HOST_PORT_REG       (USB_HOST_BASE + 0x040)
 #define HOST_CHAN_CHARACTER_REG(chan_id) \
     (USB_HOST_BASE + 0x100 + (chan_id * 0x20))
+#define HOST_CHAN_SPLIT_CTRL_REG(chan_id) \
+    (USB_HOST_BASE + 0x104 + (chan_id * 0x20))
 #define HOST_CHAN_INT_REG(chan_id) (USB_HOST_BASE + 0x108 + (chan_id * 0x20))
 #define HOST_CHAN_INT_MASK_REG(chan_id) \
     (USB_HOST_BASE + 0x10C + (chan_id * 0x20))
@@ -33,6 +35,7 @@
     (USB_HOST_BASE + 0x110 + (chan_id * 0x20))
 #define HOST_CHAN_DMA_ADDR_REG(chan_id) \
     (USB_HOST_BASE + 0x114 + (chan_id * 0x20))
+#define HOST_ALLCHAN_INT_MASK_REG (USB_HOST_BASE + 0x018)
 
 #ifndef __ASSEMBLER__
 
