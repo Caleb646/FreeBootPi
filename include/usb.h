@@ -3,39 +3,50 @@
 
 #include "base.h"
 
-#define USB_CORE_BASE       (PERIPH_BASE + 0x02980000)
-#define USB_HOST_BASE       (USB_CORE_BASE + 0x400)
-#define USB_DEV_BASE        (USB_CORE_BASE + 0x800)
-#define USB_POWER           (USB_CORE_BASE + 0xE00)
+#define USB_CORE_BASE               (PERIPH_BASE + 0x02980000)
+#define USB_HOST_BASE               (USB_CORE_BASE + 0x400)
+#define USB_DEV_BASE                (USB_CORE_BASE + 0x800)
+#define USB_POWER                   (USB_CORE_BASE + 0xE00)
 
-#define CORE_OTG_CTRL_REG   (USB_CORE_BASE + 0x000)
-#define CORE_OTG_INT_REG    (USB_CORE_BASE + 0x004)
+#define CORE_OTG_CTRL_REG           (USB_CORE_BASE + 0x000)
+#define CORE_OTG_INT_REG            (USB_CORE_BASE + 0x004)
 /*
  * Bit 0 = interrupt enable
  */
-#define CORE_AHB_CFG_REG    (USB_CORE_BASE + 0x008)
-#define CORE_USB_CFG_REG    (USB_CORE_BASE + 0x00C)
-#define CORE_RESET_REG      (USB_CORE_BASE + 0x010)
-#define CORE_INT_STATUS_REG (USB_CORE_BASE + 0x014)
-#define CORE_INT_MASK_REG   (USB_CORE_BASE + 0x018)
-#define CORE_VENDOR_ID_REG  (USB_CORE_BASE + 0x040)
-#define CORE_HW_CFG2_REG    (USB_CORE_BASE + 0x048)
+#define CORE_AHB_CFG_REG            (USB_CORE_BASE + 0x008)
+#define CORE_USB_CFG_REG            (USB_CORE_BASE + 0x00C)
+#define CORE_RESET_REG              (USB_CORE_BASE + 0x010)
+#define CORE_INT_STATUS_REG         (USB_CORE_BASE + 0x014)
+#define CORE_INT_MASK_REG           (USB_CORE_BASE + 0x018)
+#define CORE_VENDOR_ID_REG          (USB_CORE_BASE + 0x040)
+#define CORE_HW_CFG2_REG            (USB_CORE_BASE + 0x048)
 
-#define HOST_CFG_REG        (USB_HOST_BASE + 0x000)
-#define HOST_FRM_NUM        (USB_HOST_BASE + 0x008)
-#define HOST_PORT_REG       (USB_HOST_BASE + 0x040)
+#define HOST_CFG_REG                (USB_HOST_BASE + 0x000)
+#define HOST_FRM_NUM                (USB_HOST_BASE + 0x008)
+#define HOST_ALLCHAN_INT_STATUS_REG (USB_HOST_BASE + 0x014)
+#define HOST_ALLCHAN_INT_MASK_REG   (USB_HOST_BASE + 0x018)
+#define HOST_PORT_REG               (USB_HOST_BASE + 0x040)
 #define HOST_CHAN_CHARACTER_REG(chan_id) \
     (USB_HOST_BASE + 0x100 + (chan_id * 0x20))
 #define HOST_CHAN_SPLIT_CTRL_REG(chan_id) \
     (USB_HOST_BASE + 0x104 + (chan_id * 0x20))
 #define HOST_CHAN_INT_REG(chan_id) (USB_HOST_BASE + 0x108 + (chan_id * 0x20))
+
+/*
+ * INT_AHB_ERROR | STALL | XACT_ERROR | BABBLE_ERROR | FRAME_OVERRUN | DATA_TOGGLE_ERROR
+ */
+#define HOST_CHAN_INT_ERROR_MASK \
+    ((1 << 2) | (1 << 3) | (1 << 7) | (1 << 8) | (1 << 9) | (1 << 10))
+#define HOST_CHAN_INT_NAK_BIT  (1 << 4)
+#define HOST_CHAN_INT_NYET_BIT (1 << 6)
+
 #define HOST_CHAN_INT_MASK_REG(chan_id) \
     (USB_HOST_BASE + 0x10C + (chan_id * 0x20))
 #define HOST_CHAN_TRANSFER_INFO_REG(chan_id) \
     (USB_HOST_BASE + 0x110 + (chan_id * 0x20))
 #define HOST_CHAN_DMA_ADDR_REG(chan_id) \
     (USB_HOST_BASE + 0x114 + (chan_id * 0x20))
-#define HOST_ALLCHAN_INT_MASK_REG (USB_HOST_BASE + 0x018)
+
 
 #ifndef __ASSEMBLER__
 
@@ -165,6 +176,13 @@ typedef struct usb_request_t {
     u16 data_size;
 } usb_request_t;
 
+typedef enum stage_sub_state_t {
+    eSTAGE_SUB_STATE_WAIT_FOR_CHAN_DISABLE,
+    eSTAGE_SUB_STATE_WAIT_FOR_TRANSACTION_COMPLETE
+} stage_sub_state_t;
+
+typedef enum stage_state_t { eSTAGE_STATE_NO_SPLIT_TRANSFER } stage_state_t;
+
 typedef struct stage_data_t {
     usb_request_t* request_data;
     u32 nchannel;
@@ -182,6 +200,8 @@ typedef struct stage_data_t {
     u8 device_address;
     endpoint_type_t endpoint_type;
     u8 endpoint_number;
+    stage_state_t state;
+    stage_sub_state_t sub_state;
 } stage_data_t;
 
 // Forward declare

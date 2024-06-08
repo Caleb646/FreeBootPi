@@ -40,8 +40,6 @@ void kernel_main (void) {
     cache_invalidate ();
     mem_init (NULLPTR);
 
-    // wait_ms (100);
-
     hci_device_t* host = hci_device_create ();
     hci_init (host);
 

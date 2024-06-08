@@ -285,7 +285,7 @@ void assertion_failed (char const* fname, unsigned int line_num, char* fmt, ...)
 
     char line_buf[32] = { '\0' };
     memset (line_buf, '\0', sizeof (assert_buffer_));
-    sprintf (line_buf, "LINE [%u]", line_num);
+    sprintf (line_buf, " LINE [%u]", line_num);
     strcat (line_buf, assert_buffer_);
 
     char msg_buf[1024] = { '\0' };
@@ -296,6 +296,8 @@ void assertion_failed (char const* fname, unsigned int line_num, char* fmt, ...)
     putcp (&msg_buf, 0);
     va_end (va);
     strcat (msg_buf, assert_buffer_);
+
+    LOG_ERROR (assert_buffer_);
 
     // Report the error and then hang here
     while (1) {

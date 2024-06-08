@@ -4,15 +4,40 @@
 #include "peripherals/vpu.h"
 #include "sync.h"
 
-typedef void (*request_completion_routine) (usb_request_t* req_buff);
+typedef void (*request_completion_routine) (hci_device_t* host, u32 chan);
 
 #define MAX_NDEVICES 32
 static bool volatile allocated_hci_devices_[MAX_NDEVICES];
 static hci_device_t hci_devices_[MAX_NDEVICES];
+static u8 GCC_CACHE_ALIGNED dma_ring_buf_[CACHE_LINE_NBYTES * MAX_NCHANNELS * 4];
+static u8* cur_ptr_dma_ring_buf_ = NULLPTR;
+static uintptr_t start_dma_ring_buf_;
+static uintptr_t end_dma_ring_buf_;
+STATIC_ASSERT ((sizeof (dma_ring_buf_) % CACHE_LINE_NBYTES == 0));
 // static usb_info_t usb_info_          = { 0 };
 // static hci_device_t hci_root_device_ = { 0 };
 // static usb_device_t usb_root_device_ = { 0 };
 // static hci_root_port_t hci_root_port_ = { 0 };
+
+static void* allocate_dma_buffer_ (u64 sz) {
+    if (cur_ptr_dma_ring_buf_ == NULLPTR) {
+        cur_ptr_dma_ring_buf_ = &dma_ring_buf_[0];
+        start_dma_ring_buf_   = (uintptr_t)&dma_ring_buf_[0];
+        end_dma_ring_buf_ = (uintptr_t)&dma_ring_buf_[sizeof (dma_ring_buf_) - 1];
+    }
+    u64 mod        = sz % CACHE_LINE_NBYTES;
+    u64 aligned_sz = sz + (sz * (mod != 0) - mod);
+    ASSERT (
+    (end_dma_ring_buf_ - start_dma_ring_buf_ > aligned_sz),
+    "USB failed to allocate buffer with cache aligned size [%u]", aligned_sz);
+
+    if ((uintptr_t)cur_ptr_dma_ring_buf_ + aligned_sz > end_dma_ring_buf_) {
+        cur_ptr_dma_ring_buf_ = &dma_ring_buf_[0];
+    }
+    void* ret = cur_ptr_dma_ring_buf_;
+    cur_ptr_dma_ring_buf_ += aligned_sz;
+    return ret;
+}
 
 static bool wait_for_bit_ (u64 reg_addr, u32 mask, bool wait_until_set, u32 ms_timeout) {
     while ((read32 (reg_addr) & mask) ? !wait_until_set : wait_until_set) {
@@ -22,6 +47,10 @@ static bool wait_for_bit_ (u64 reg_addr, u32 mask, bool wait_until_set, u32 ms_t
         }
     }
     return true;
+}
+
+static void completion_routine (hci_device_t* host, u32 chan) {
+    host->waiting = false;
 }
 
 static usb_status_t power_on_ (void) {
@@ -210,30 +239,6 @@ static usb_status_t core_init (hci_device_t* host) {
     return eUSB_STATUS_OK;
 }
 
-static void hci_channel_irq_handler_ (hci_device_t* host, u32 chan) {
-    LOG_INFO ("USB channel interrupt called for channel [%u]", chan);
-}
-
-static void hci_irq_handler_ (u32 irq_id, void* context) {
-    u32 int_status = read32 (CORE_INT_STATUS_REG);
-    LOG_INFO ("USB inside interrupt handler");
-    if (context == NULLPTR) {
-        LOG_ERROR ("USB interrupt handler device is null");
-        return;
-    }
-    hci_device_t* host = (hci_device_t*)context;
-    for (u32 i = 0; i < host->nchannels; ++i) {
-        if ((host->allocated_channels & (1 << i))) {
-            // Acknowledge channel interrupt
-            write32 (HOST_CHAN_INT_REG (i), 0);
-            hci_channel_irq_handler_ (host, i);
-        }
-    }
-
-    if (int_status) {
-    }
-}
-
 static usb_speed_t hci_get_port_speed (void) {
     u32 host_port = read32 (HOST_PORT_REG);
     u32 speed     = ((read32 (HOST_PORT_REG)) >> 17) & 3;
@@ -248,7 +253,8 @@ static usb_speed_t hci_get_port_speed (void) {
 }
 
 static void hci_start_channel (hci_device_t* host, stage_data_t* stage_data) {
-    u32 chan = stage_data->nchannel;
+    u32 chan              = stage_data->nchannel;
+    stage_data->sub_state = eSTAGE_SUB_STATE_WAIT_FOR_TRANSACTION_COMPLETE;
     // Enable interrupts for this channel
     enable_channel_interrupts (chan);
     // Reset all pending channel interrupts
@@ -259,6 +265,11 @@ static void hci_start_channel (hci_device_t* host, stage_data_t* stage_data) {
     transfer_info |= (stage_data->transfer_size_npackets << 19) & (0x3FF << 19);
     transfer_info |= (stage_data->request_data->endpoint->next_pid << 29);
     write32 (HOST_CHAN_TRANSFER_INFO_REG (chan), transfer_info);
+    // Allocate a dma buffer that is aligned to the cache line size in
+    // address and size
+    void* dma_buffer = allocate_dma_buffer_ (stage_data->transfer_size_nbytes);
+    memcpy (stage_data->transfer_buf, stage_data->transfer_size_nbytes, dma_buffer);
+    stage_data->transfer_buf = dma_buffer;
     // Convert stage_data's transfer buf address to a VPU address
     // Then give it to the DMA reg
     uintptr_t buf_addr = (uintptr_t)stage_data->transfer_buf;
@@ -338,6 +349,10 @@ static void hci_start_transaction (hci_device_t* host, stage_data_t* stage_data)
     // Check if the channel is enabled if it is disable it
     u32 character = read32 (HOST_CHAN_CHARACTER_REG (chan));
     if (character & (1 << 31)) {
+        LOG_WARN ("USB channel was NOT disabled");
+        // Set the sub state to wait for channel disable so the start_channel
+        // can be called when the interrupt is received
+        stage_data->sub_state = eSTAGE_SUB_STATE_WAIT_FOR_CHAN_DISABLE;
         // Set channel enable to 0
         character &= ~(1 << 31);
         // Disable the channel
@@ -357,6 +372,7 @@ usb_request_t* request,
 u32 chan,
 bool is_dir_in,
 bool is_status_stage) {
+    memset (stage_data, 0, sizeof (stage_data_t));
     usb_device_t const* device  = &host->usb_device;
     stage_data->request_data    = request;
     stage_data->is_dir_in       = is_dir_in;
@@ -391,16 +407,20 @@ static s32 hci_allocate_device_channel (hci_device_t* host) {
     return -1;
 }
 
+static void hci_free_device_channel (hci_device_t* host, u32 chan) {
+    host->allocated_channels &= ~(1 << chan);
+}
+
 static bool
 hci_transfer_stage (hci_device_t* host, usb_request_t* request, bool is_dir_in, bool status_stage) {
-    stage_data_t stage_data = { 0 };
-    s32 chan                = hci_allocate_device_channel (host);
+    s32 chan = hci_allocate_device_channel (host);
     if (chan == -1) {
         return false;
     }
-    stage_data_init_ (host, &stage_data, request, chan, is_dir_in, status_stage);
+    stage_data_t* stage_data = &host->stage_data[chan];
+    stage_data_init_ (host, stage_data, request, chan, is_dir_in, status_stage);
     host->waiting = true;
-    hci_start_transaction (host, &stage_data);
+    hci_start_transaction (host, stage_data);
     // Block until transaction is complete.
     // host->waiting is set to false in interrupt handler
     while (host->waiting) {
@@ -527,6 +547,124 @@ hci_root_port_init (hci_device_t* host, usb_device_t* device, hci_root_port_t* p
 static void hci_device_init (hci_device_t* host) {
     if (hci_root_port_init (host, &host->usb_device, &host->root_port) != eUSB_STATUS_OK) {
         LOG_ERROR ("USB failed to initialize Root Port");
+    }
+}
+
+static void hci_channel_irq_handler_ (hci_device_t* host, u32 chan) {
+    ASSERT ((host != NULLPTR), "USB interrupt was called on channel [%u] with null host", chan);
+    stage_data_t* stage_data = &host->stage_data[chan];
+    // LOG_INFO ("USB channel interrupt called for channel [%u]", chan);
+    switch (stage_data->sub_state) {
+    case eSTAGE_SUB_STATE_WAIT_FOR_CHAN_DISABLE:
+        hci_start_channel (host, stage_data);
+        return;
+    case eSTAGE_SUB_STATE_WAIT_FOR_TRANSACTION_COMPLETE:
+        invalidate_data_cache_vaddr (
+        (uintptr_t)stage_data->transfer_buf, stage_data->transfer_size_nbytes);
+        u32 transfer_size  = read32 (HOST_CHAN_TRANSFER_INFO_REG (chan));
+        u32 chan_interrupt = read32 (HOST_CHAN_INT_REG (chan));
+        /*
+         * If the transaction is halted (1 << 1) then restart it
+         */
+        if (chan_interrupt == (1 << 1)) {
+            // LOG_DEBUG ("USB transaction was halted");
+            hci_start_transaction (host, stage_data);
+            return;
+        }
+        u32 npackets_left = (transfer_size >> 19) & 0x3FF;
+        u32 nbytes_left   = transfer_size & 0x7FFFF;
+        /*
+         * Check for errors, NAKs, or NYET
+         */
+        if (chan_interrupt & (HOST_CHAN_INT_ERROR_MASK | HOST_CHAN_INT_NAK_BIT | HOST_CHAN_INT_NYET_BIT)) {
+            /*
+             * If NAK was received
+             */
+            // if(chan_interrupt & HOST_CHAN_INT_NAK_BIT) {
+            //     LOG_ERROR("USB transaction on channel [%u] received a NAK", chan);
+            // }
+            LOG_ERROR ("USB transaction on channel [%u] has errors [0x%X]", chan, chan_interrupt);
+        }
+        u32 npackets_sent = stage_data->transfer_size_npackets - npackets_left;
+        u32 nbytes_sent   = stage_data->transfer_size_nbytes - nbytes_left;
+        pid_t* next_pid   = &stage_data->request_data->endpoint->next_pid;
+        LOG_INFO (
+        "USB packets/bytes left [%u]/[%u] packets/bytes sent [%u]/[%u]",
+        npackets_left, nbytes_left, npackets_sent, nbytes_sent);
+        if (stage_data->status_stage == false) {
+            switch (*next_pid) {
+            case ePID_SETUP: *next_pid = ePID_DATA_1; break;
+            case ePID_DATA_0:
+                if (npackets_sent & 1) {
+                    *next_pid = ePID_DATA_1;
+                }
+                break;
+            case ePID_DATA_1:
+                if (npackets_sent & 1) {
+                    *next_pid = ePID_DATA_0;
+                }
+                break;
+            }
+        }
+        stage_data->transfer_size_npackets -= npackets_sent;
+        stage_data->transfer_size_nbytes -= nbytes_sent;
+        stage_data->transfer_buf = ((u8*)stage_data->transfer_buf) + nbytes_sent;
+        break;
+    default:
+        ASSERT (false, "USB stage_data has invalid substate [%u]", stage_data->sub_state);
+        return;
+    }
+}
+
+static void hci_irq_handler_ (u32 irq_id, void* context) {
+    u32 int_status = read32 (CORE_INT_STATUS_REG);
+    LOG_INFO ("USB inside interrupt handler");
+    if (context == NULLPTR) {
+        LOG_ERROR ("USB interrupt handler device is null");
+        return;
+    }
+    hci_device_t* host = (hci_device_t*)context;
+    /*
+     * If interrupt is intended for the host controller (1 << 25)
+     * call interrupt handler for every allocated channel
+     */
+    if (int_status & (1 << 25)) {
+        u32 all_chan_interrupt = read32 (HOST_ALLCHAN_INT_STATUS_REG);
+        // Acknowledge interrupts
+        write32 (HOST_ALLCHAN_INT_STATUS_REG, all_chan_interrupt);
+
+        for (u32 i = 0; i < host->nchannels; ++i) {
+            if (all_chan_interrupt & (1 << i)) {
+                // Acknowledge channel interrupt
+                write32 (HOST_CHAN_INT_REG (i), 0);
+                hci_channel_irq_handler_ (host, i);
+            }
+        }
+    }
+    /*
+     * If the host device supports detecting when a device
+     * connects or disconnects see if the interrupt is a connect
+     * or disconnect interrupt
+     */
+    if (host->is_plugnplay) {
+        /*
+         * Check if the status of the port has changed
+         */
+        if (int_status & (1 << 24)) {
+            u32 host_port = read32 (HOST_PORT_REG);
+            /*
+             * Check if a device was CONNECTED
+             */
+            if (host_port & (1 << 1)) {
+                LOG_INFO ("USB detected that a device was recently CONNECTED");
+            }
+        }
+        /*
+         * Check if a device was DISCONNECTED
+         */
+        if (int_status & (1 << 29)) {
+            LOG_INFO ("USB detected that a device was recently DISCONNECTED");
+        }
     }
 }
 
