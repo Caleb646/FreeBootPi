@@ -40,8 +40,8 @@ void kernel_main (void) {
     cache_invalidate ();
     mem_init (NULLPTR);
 
-    hci_device_t* host = hci_device_create ();
-    hci_init (host);
+    hci_device_t host;
+    hci_init (&host);
 
     dma_init (NULLPTR);
     screen_init ();

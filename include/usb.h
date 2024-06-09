@@ -3,35 +3,37 @@
 
 #include "base.h"
 
-#define USB_CORE_BASE               (PERIPH_BASE + 0x02980000)
-#define USB_HOST_BASE               (USB_CORE_BASE + 0x400)
-#define USB_DEV_BASE                (USB_CORE_BASE + 0x800)
-#define USB_POWER                   (USB_CORE_BASE + 0xE00)
+#define USB_CORE_BASE                  (PERIPH_BASE + 0x02980000)
+#define USB_HOST_BASE                  (USB_CORE_BASE + 0x400)
+#define USB_DEV_BASE                   (USB_CORE_BASE + 0x800)
+#define USB_POWER                      (USB_CORE_BASE + 0xE00)
 
-#define CORE_OTG_CTRL_REG           (USB_CORE_BASE + 0x000)
-#define CORE_OTG_INT_REG            (USB_CORE_BASE + 0x004)
+#define CORE_OTG_CTRL_REG              (USB_CORE_BASE + 0x000)
+#define CORE_OTG_INT_REG               (USB_CORE_BASE + 0x004)
 /*
  * Bit 0 = interrupt enable
  */
-#define CORE_AHB_CFG_REG            (USB_CORE_BASE + 0x008)
-#define CORE_USB_CFG_REG            (USB_CORE_BASE + 0x00C)
-#define CORE_RESET_REG              (USB_CORE_BASE + 0x010)
-#define CORE_INT_STATUS_REG         (USB_CORE_BASE + 0x014)
-#define CORE_INT_MASK_REG           (USB_CORE_BASE + 0x018)
-#define CORE_VENDOR_ID_REG          (USB_CORE_BASE + 0x040)
-#define CORE_HW_CFG2_REG            (USB_CORE_BASE + 0x048)
+#define CORE_AHB_CFG_REG               (USB_CORE_BASE + 0x008)
+#define CORE_USB_CFG_REG               (USB_CORE_BASE + 0x00C)
+#define CORE_RESET_REG                 (USB_CORE_BASE + 0x010)
+#define CORE_INT_STATUS_REG            (USB_CORE_BASE + 0x014)
+#define CORE_INT_MASK_REG              (USB_CORE_BASE + 0x018)
+#define CORE_RX_FIFO_SIZE_REG          (USB_CORE_BASE + 0x024)
+#define CORE_NPER_TX_FIFO_SIZE_REG     (USB_CORE_BASE + 0x028)
+#define CORE_VENDOR_ID_REG             (USB_CORE_BASE + 0x040)
+#define CORE_HW_CFG2_REG               (USB_CORE_BASE + 0x048)
+#define CORE_HOST_PER_TX_FIFO_SIZE_REG (USB_CORE_BASE + 0x100)
 
-#define HOST_CFG_REG                (USB_HOST_BASE + 0x000)
-#define HOST_FRM_NUM                (USB_HOST_BASE + 0x008)
-#define HOST_ALLCHAN_INT_STATUS_REG (USB_HOST_BASE + 0x014)
-#define HOST_ALLCHAN_INT_MASK_REG   (USB_HOST_BASE + 0x018)
-#define HOST_PORT_REG               (USB_HOST_BASE + 0x040)
+#define HOST_CFG_REG                   (USB_HOST_BASE + 0x000)
+#define HOST_FRM_NUM                   (USB_HOST_BASE + 0x008)
+#define HOST_ALLCHAN_INT_STATUS_REG    (USB_HOST_BASE + 0x014)
+#define HOST_ALLCHAN_INT_MASK_REG      (USB_HOST_BASE + 0x018)
+#define HOST_PORT_REG                  (USB_HOST_BASE + 0x040)
 #define HOST_CHAN_CHARACTER_REG(chan_id) \
     (USB_HOST_BASE + 0x100 + (chan_id * 0x20))
 #define HOST_CHAN_SPLIT_CTRL_REG(chan_id) \
     (USB_HOST_BASE + 0x104 + (chan_id * 0x20))
 #define HOST_CHAN_INT_REG(chan_id) (USB_HOST_BASE + 0x108 + (chan_id * 0x20))
-
 /*
  * INT_AHB_ERROR | STALL | XACT_ERROR | BABBLE_ERROR | FRAME_OVERRUN | DATA_TOGGLE_ERROR
  */
@@ -55,7 +57,8 @@ typedef enum usb_status_t {
     eUSB_STATUS_ERROR,
     eUSB_STATUS_INIT_FAILED,
     eUSB_STATUS_POWERON_FAILED,
-    eUSB_STATUS_RESET_FAILED
+    eUSB_STATUS_RESET_FAILED,
+    eUSB_STATUS_ROOTPORTINIT_FAILED
 } usb_status_t;
 
 typedef enum usb_speed_t {
@@ -96,9 +99,9 @@ typedef struct usb_info_t {
 
 typedef enum endpoint_type_t {
     eEND_POINT_TYPE_CONTROL     = 0,
-    eEND_POINT_TYPE_BULK        = 1,
-    eEND_POINT_TYPE_INTERRUPT   = 2,
-    eEND_POINT_TYPE_ISOCHRONOUS = 3,
+    eEND_POINT_TYPE_ISOCHRONOUS = 1,
+    eEND_POINT_TYPE_BULK        = 2,
+    eEND_POINT_TYPE_INTERRUPT   = 3
 } endpoint_type_t;
 
 typedef struct endpoint_t {
@@ -106,15 +109,15 @@ typedef struct endpoint_t {
     endpoint_type_t type;
     u32 max_packet_size;
     u8 number;
-    pid_t next_pid;
+    pid_t pid;
 } endpoint_t;
 
-#define ENDPOINT_INIT()                                             \
-    {                                                               \
-        .type = eEND_POINT_TYPE_CONTROL, .is_direction_in = false,  \
-        .next_pid        = ePID_SETUP,                              \
-        .max_packet_size = USB_DEFAULT_MAX_PACKET_SIZE, .number = 0 \
-    }
+/* #define ENDPOINT_INIT()                                             \
+//     {                                                               \
+//         .type = eEND_POINT_TYPE_CONTROL, .is_direction_in = false,  \
+//         .next_pid        = ePID_SETUP,                              \
+//         .max_packet_size = USB_DEFAULT_MAX_PACKET_SIZE, .number = 0 \
+//     }*/
 
 // clang-format off
 /*
@@ -171,20 +174,44 @@ STATIC_ASSERT ((sizeof (setup_data_t) == 8));
 
 typedef struct usb_request_t {
     setup_data_t setup_data;
-    endpoint_t* endpoint;
-    void* data;
+    endpoint_t* pendpoint;
+    void* pdata;
     u16 data_size;
 } usb_request_t;
 
+// Forward declare
+typedef struct hci_root_port_t hci_root_port_t;
+typedef struct hci_device_t hci_device_t;
+typedef struct usb_device_t usb_device_t;
+
+typedef enum stage_state_t {
+    eSTAGE_STATE_NO_SPLIT_TRANSFER,
+    eSTAGE_STATE_START_SPLIT,
+    eSTAGE_STATE_COMPLETE_SPLIT,
+    eSTAGE_STATE_PERIODIC_DELAY,
+    eSTAGE_STATE_UNKNOWN
+} stage_state_t;
+
 typedef enum stage_sub_state_t {
     eSTAGE_SUB_STATE_WAIT_FOR_CHAN_DISABLE,
-    eSTAGE_SUB_STATE_WAIT_FOR_TRANSACTION_COMPLETE
+    eSTAGE_SUB_STATE_WAIT_FOR_TRANSACTION_COMPLETE,
+    eSTAGE_SUB_STATE_UNKNOWN
 } stage_sub_state_t;
 
-typedef enum stage_state_t { eSTAGE_STATE_NO_SPLIT_TRANSFER } stage_state_t;
-
 typedef struct stage_data_t {
-    usb_request_t* request_data;
+    usb_device_t* pdevice;
+    endpoint_t* pendpoint;
+    usb_request_t* prequest;
+    void* ptransfer_buf;
+    u32 total_tsize_nbytes;
+    u32 total_tsize_npackets;
+    u32 nbytes_per_transaction;
+    u32 npackets_per_transaction;
+    u32 total_bytes_sent;
+    u32 total_packets_sent;
+    u32 max_packet_size;
+    usb_speed_t speed;
+    u32 dev_addr;
     u32 nchannel;
     /*
      * Direction can be IN: device (keyboard/mouse) sends data to the host (computer)
@@ -192,21 +219,9 @@ typedef struct stage_data_t {
      */
     bool is_dir_in;
     bool status_stage;
-    void* transfer_buf;
-    u32 transfer_size_nbytes;
-    u32 transfer_size_npackets;
-    u32 max_packet_size;
-    usb_speed_t speed;
-    u8 device_address;
-    endpoint_type_t endpoint_type;
-    u8 endpoint_number;
     stage_state_t state;
     stage_sub_state_t sub_state;
 } stage_data_t;
-
-// Forward declare
-typedef struct hci_root_port_t hci_root_port_t;
-typedef struct hci_device_t hci_device_t;
 
 typedef struct usb_device_t {
     endpoint_t endpoint;
@@ -226,6 +241,7 @@ typedef struct hci_device_t {
     hci_root_port_t root_port;
     usb_device_t usb_device;
     bool is_plugnplay;
+    bool is_rootport_enabled;
     u32 nchannels;
     /*
      * 32 channels. if 1 channel is allocated
@@ -238,7 +254,6 @@ typedef struct hci_device_t {
 
 
 usb_status_t hci_init (hci_device_t* host);
-hci_device_t* hci_device_create (void);
 // usb_status_t hcd_init_ (void);
 // usb_status_t power_on_ (void);
 

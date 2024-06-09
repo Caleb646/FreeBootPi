@@ -1,6 +1,6 @@
 #include "peripherals/vpu.h"
+#include "peripherals/timer.h"
 #include "sync.h"
-#include "time.h"
 
 #define VPU_BASE         (PERIPH_BASE + 0x200B880)
 #define VPU_MBOX0_READ   (VPU_BASE + 0x0)

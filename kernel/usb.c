@@ -7,8 +7,12 @@
 typedef void (*request_completion_routine) (hci_device_t* host, u32 chan);
 
 #define MAX_NDEVICES 32
-static bool volatile allocated_hci_devices_[MAX_NDEVICES];
-static hci_device_t hci_devices_[MAX_NDEVICES];
+// static bool volatile allocated_hci_devices_[MAX_NDEVICES];
+// static hci_device_t hci_devices_[MAX_NDEVICES];
+// static hci_device_t hci_host_device_;
+/*
+ * DMA ring buffer for sending and receiving packets
+ */
 static u8 GCC_CACHE_ALIGNED dma_ring_buf_[CACHE_LINE_NBYTES * MAX_NCHANNELS * 4];
 static u8* cur_ptr_dma_ring_buf_ = NULLPTR;
 static uintptr_t start_dma_ring_buf_;
@@ -49,9 +53,35 @@ static bool wait_for_bit_ (u64 reg_addr, u32 mask, bool wait_until_set, u32 ms_t
     return true;
 }
 
-static void completion_routine (hci_device_t* host, u32 chan) {
-    host->waiting = false;
+static bool enable_root_port_ (hci_device_t* host) {
+    if (wait_for_bit_ (HOST_PORT_REG, (1 << 0), true, 2000) == false) {
+        LOG_ERROR ("[0x%X]", read32 (HOST_PORT_REG));
+        return false;
+    }
+    wait_ms (100); // USB 2.0 spec
+
+    u32 host_port = read32 (HOST_PORT_REG);
+    // PORT_CONNECT_CHANGED | PORT_ENABLE | PORT_ENABLE_CHANGED | PORT_OVERCURRENT_CHANGED
+    host_port &= ~((1 << 1) | (1 << 2) | (1 << 3) | (1 << 5));
+    // Reset the port
+    host_port |= (1 << 8);
+    write32 (HOST_PORT_REG, host_port);
+
+    wait_ms (50); // USB 2.0 spec (tDRSTR)
+
+    host_port = read32 (HOST_PORT_REG);
+    // PORT_CONNECT_CHANGED | PORT_ENABLE | PORT_ENABLE_CHANGED | PORT_OVERCURRENT_CHANGED
+    host_port &= ~((1 << 1) | (1 << 2) | (1 << 3) | (1 << 5));
+    host_port &= ~(1 << 8);
+    write32 (HOST_PORT_REG, host_port);
+
+    wait_ms (20); // USB 2.0 spec (tRSTRCY)
+    return true;
 }
+
+// static void completion_routine (hci_device_t* host, u32 chan) {
+//     host->waiting = false;
+// }
 
 static usb_status_t power_on_ (void) {
     /*
@@ -163,14 +193,21 @@ static usb_status_t host_init_ (hci_device_t* host) {
     u32 host_config = read32 (HOST_CFG_REG);
     host_config &= ~(3 << 0); // FSLS PCLK SEL Mask
 
-    u32 usb_config = read32 (CORE_USB_CFG_REG);
     u32 hw_config  = read32 (CORE_HW_CFG2_REG);
+    u32 usb_config = read32 (CORE_USB_CFG_REG);
     if (((hw_config >> 6) & 3) == (1 << 1) && ((hw_config >> 8) & 3) == (1 << 0) && (usb_config & (1 << 17))) {
         host_config |= (1 << 0); // FSLS_PCLK_SEL_48_MHZ
     } else {
         host_config |= (0 << 0); // FSLS_PCLK_SEL_30_60_MHZ
     }
     write32 (HOST_CFG_REG, host_config);
+    /*
+     * Configure the dynamic FIFO buffers
+     */
+    write32 (CORE_RX_FIFO_SIZE_REG, 1024);
+    write32 (CORE_NPER_TX_FIFO_SIZE_REG, 1024 | (1024 << 16));
+    write32 (CORE_HOST_PER_TX_FIFO_SIZE_REG, 2048 | (1024 << 16));
+
     // Flush all TX FIFOs
     flush_tx_fifo_ (16);
     flush_rx_fifo_ ();
@@ -193,6 +230,10 @@ static usb_status_t host_init_ (hci_device_t* host) {
 
 static usb_status_t core_init (hci_device_t* host) {
     u32 usb_config = read32 (CORE_USB_CFG_REG);
+    /*
+     * Set full speed. CFG_PHY_SEL_FS
+     */
+    usb_config |= (1 << 6);
     usb_config &= ~(1 << 20); // ULPI_EXT_VBUS_DRV
     usb_config &= ~(1 << 22); // TERM_SEL_DL_PULSE
     write32 (CORE_USB_CFG_REG, usb_config);
@@ -206,9 +247,12 @@ static usb_status_t core_init (hci_device_t* host) {
     usb_config &= ~(1 << 4); // select UTMI+
     usb_config &= ~(1 << 3); // select UTMI width to be 8
     write32 (CORE_USB_CFG_REG, usb_config);
-    usb_config = read32 (CORE_USB_CFG_REG);
+
 
     u32 hw_config = read32 (CORE_HW_CFG2_REG);
+    ASSERT ((((hw_config >> 3) & 3) == 2), "USB invalid hardware config");
+
+    usb_config = read32 (CORE_USB_CFG_REG);
     if (((hw_config >> 6) & 3) == (1 << 1) && ((hw_config >> 8) & 3) == (1 << 0)) {
         usb_config |= (1 << 17);
         usb_config |= (1 << 19);
@@ -255,27 +299,27 @@ static usb_speed_t hci_get_port_speed (void) {
 static void hci_start_channel (hci_device_t* host, stage_data_t* stage_data) {
     u32 chan              = stage_data->nchannel;
     stage_data->sub_state = eSTAGE_SUB_STATE_WAIT_FOR_TRANSACTION_COMPLETE;
-    // Enable interrupts for this channel
-    enable_channel_interrupts (chan);
     // Reset all pending channel interrupts
     write32 (HOST_CHAN_INT_REG (chan), U32_MAX);
     // Set the transfer size in bytes, in number of packets, and the PID
-    u32 transfer_info = 0; // read32 (HOST_CHAN_TRANSFER_INFO_REG (chan));
-    transfer_info |= (stage_data->transfer_size_nbytes & 0x7FFFF);
-    transfer_info |= (stage_data->transfer_size_npackets << 19) & (0x3FF << 19);
-    transfer_info |= (stage_data->request_data->endpoint->next_pid << 29);
+    u32 bytes_to_transfer   = stage_data->nbytes_per_transaction;
+    u32 packets_to_transfer = stage_data->npackets_per_transaction;
+    u32 transfer_info       = 0;
+    transfer_info |= (bytes_to_transfer & 0x7FFFF);
+    transfer_info |= (packets_to_transfer << 19) & (0x3FF << 19);
+    transfer_info |= (stage_data->pendpoint->pid << 29);
     write32 (HOST_CHAN_TRANSFER_INFO_REG (chan), transfer_info);
     // Allocate a dma buffer that is aligned to the cache line size in
     // address and size
-    void* dma_buffer = allocate_dma_buffer_ (stage_data->transfer_size_nbytes);
-    memcpy (stage_data->transfer_buf, stage_data->transfer_size_nbytes, dma_buffer);
-    stage_data->transfer_buf = dma_buffer;
+    void* dma_buffer = allocate_dma_buffer_ (bytes_to_transfer);
+    memcpy (stage_data->ptransfer_buf, bytes_to_transfer, dma_buffer);
+    stage_data->ptransfer_buf = dma_buffer;
     // Convert stage_data's transfer buf address to a VPU address
     // Then give it to the DMA reg
-    uintptr_t buf_addr = (uintptr_t)stage_data->transfer_buf;
+    uintptr_t buf_addr = (uintptr_t)stage_data->ptransfer_buf;
     write32 (HOST_CHAN_DMA_ADDR_REG (chan), ARM_TO_VPU_BUS_ADDR (buf_addr));
     // Make transfer buffer coherent with DMA
-    clean_invalidate_data_cache_vaddr (buf_addr, stage_data->transfer_size_nbytes);
+    clean_invalidate_data_cache_vaddr (buf_addr, bytes_to_transfer);
 
     // TODO: do I need split control???
     write32 (HOST_CHAN_SPLIT_CTRL_REG (chan), 0);
@@ -303,15 +347,15 @@ static void hci_start_channel (hci_device_t* host, stage_data_t* stage_data) {
     }
     // Set the device address
     character &= ~(0x7F << 22);
-    character |= (stage_data->device_address << 22);
+    character |= (stage_data->dev_addr << 22);
     // Set the end point type for the device
     character &= ~(3 << 18);
-    character |= (stage_data->endpoint_type << 18);
+    character |= (stage_data->pendpoint->type << 18);
     // Set the end point number for the device
     character &= ~(0xF << 11);
-    character |= (0xF << 11);
+    character |= (stage_data->pendpoint->number << 11);
 
-    u32 frame_number = read32 (HOST_FRM_NUM);
+    u32 frame_number = read32 (HOST_FRM_NUM) & 0xFFFF;
     /*
      * If the frame number is odd then make it as odd
      */
@@ -330,10 +374,8 @@ static void hci_start_channel (hci_device_t* host, stage_data_t* stage_data) {
     // Clear halt bit
     chan_interrupt_mask |= (1 << 1);
     // Clear error bits
-    chan_interrupt_mask |=
-    ((1 << 2) | (1 << 3) | (1 << 7) | (1 << 8) | (1 << 9) | (1 << 10));
+    chan_interrupt_mask |= HOST_CHAN_INT_ERROR_MASK;
     write32 (HOST_CHAN_INT_MASK_REG (chan), chan_interrupt_mask);
-    // write32 (HOST_CHAN_INT_MASK_REG (chan), U32_MAX);
     /*
      * Begin the transaction
      */
@@ -368,33 +410,43 @@ static void hci_start_transaction (hci_device_t* host, stage_data_t* stage_data)
 static void stage_data_init_ (
 hci_device_t const* host,
 stage_data_t* stage_data,
+usb_device_t* device,
+endpoint_t* endpoint,
 usb_request_t* request,
 u32 chan,
 bool is_dir_in,
 bool is_status_stage) {
     memset (stage_data, 0, sizeof (stage_data_t));
-    usb_device_t const* device  = &host->usb_device;
-    stage_data->request_data    = request;
+    stage_data->pdevice         = device;
+    stage_data->pendpoint       = endpoint;
+    stage_data->prequest        = request;
     stage_data->is_dir_in       = is_dir_in;
     stage_data->status_stage    = is_status_stage;
     stage_data->nchannel        = chan;
-    stage_data->max_packet_size = USB_DEFAULT_MAX_PACKET_SIZE;
+    stage_data->max_packet_size = endpoint->max_packet_size;
     stage_data->speed           = device->speed;
-    stage_data->device_address  = device->address;
-    stage_data->endpoint_type   = device->endpoint.type;
-    stage_data->endpoint_number = device->endpoint.number;
+    stage_data->dev_addr        = device->address;
 
-    if (!is_status_stage) {
-        if (request->endpoint->next_pid == ePID_SETUP) {
-            stage_data->transfer_size_nbytes = sizeof (setup_data_t);
-            stage_data->transfer_buf = &stage_data->request_data->setup_data;
+    if (is_status_stage == false) {
+        if (endpoint->pid == ePID_SETUP) {
+            stage_data->total_tsize_nbytes = sizeof (setup_data_t);
+            stage_data->ptransfer_buf      = &request->setup_data;
         } else {
-            stage_data->transfer_size_nbytes = stage_data->request_data->data_size;
-            stage_data->transfer_buf         = stage_data->request_data->data;
+            stage_data->total_tsize_nbytes = request->data_size;
+            stage_data->ptransfer_buf      = request->pdata;
         }
+        stage_data->total_tsize_npackets =
+        (stage_data->total_tsize_nbytes / stage_data->max_packet_size) + 1;
+
+        stage_data->nbytes_per_transaction   = stage_data->total_tsize_nbytes;
+        stage_data->npackets_per_transaction = stage_data->total_tsize_npackets;
+    } else {
+        stage_data->total_tsize_nbytes   = 0;
+        stage_data->total_tsize_npackets = 1;
+
+        stage_data->nbytes_per_transaction   = 0;
+        stage_data->npackets_per_transaction = 1;
     }
-    stage_data->transfer_size_npackets =
-    (stage_data->transfer_size_nbytes / stage_data->max_packet_size) + 1;
 }
 
 static s32 hci_allocate_device_channel (hci_device_t* host) {
@@ -407,19 +459,29 @@ static s32 hci_allocate_device_channel (hci_device_t* host) {
     return -1;
 }
 
-static void hci_free_device_channel (hci_device_t* host, u32 chan) {
-    host->allocated_channels &= ~(1 << chan);
-}
+// static void hci_free_device_channel (hci_device_t* host, u32 chan) {
+//     host->allocated_channels &= ~(1 << chan);
+// }
 
 static bool
 hci_transfer_stage (hci_device_t* host, usb_request_t* request, bool is_dir_in, bool status_stage) {
     s32 chan = hci_allocate_device_channel (host);
     if (chan == -1) {
+        LOG_ERROR ("USB unable to allocate channel");
         return false;
     }
+    usb_device_t* device = &host->usb_device;
+    endpoint_t* endpoint = &host->usb_device.endpoint;
+    ASSERT ((device != NULLPTR), "USB device was null");
+    ASSERT ((endpoint != NULLPTR), "USB endpoint was null");
     stage_data_t* stage_data = &host->stage_data[chan];
-    stage_data_init_ (host, stage_data, request, chan, is_dir_in, status_stage);
+    stage_data_init_ (host, stage_data, device, endpoint, request, chan, is_dir_in, status_stage);
     host->waiting = true;
+
+    stage_data->state = eSTAGE_STATE_NO_SPLIT_TRANSFER;
+    // Enable interrupts for this channel
+    enable_channel_interrupts (chan);
+
     hci_start_transaction (host, stage_data);
     // Block until transaction is complete.
     // host->waiting is set to false in interrupt handler
@@ -428,44 +490,45 @@ hci_transfer_stage (hci_device_t* host, usb_request_t* request, bool is_dir_in, 
     return true;
 }
 
-static bool hci_submit_blocking_request (hci_device_t* host_device, usb_request_t* request) {
-    usb_device_t* device = host_device->root_port.device;
-    if (device->endpoint.type == eEND_POINT_TYPE_CONTROL) {
+static bool hci_submit_blocking_request (hci_device_t* host, usb_request_t* request) {
+    endpoint_t* endpoint = request->pendpoint;
+    if (endpoint->type == eEND_POINT_TYPE_CONTROL) {
         if (request->setup_data.bmrequest_type & eREQUEST_TYPE_IN) {
             // Send setup packet
-            bool status = hci_transfer_stage (host_device, request, false, false);
+            bool status = hci_transfer_stage (host, request, false, false);
             // Receive data from device
-            status &= hci_transfer_stage (host_device, request, true, false);
+            status &= hci_transfer_stage (host, request, true, false);
             // Send ack to device
-            status &= hci_transfer_stage (host_device, request, false, true);
+            status &= hci_transfer_stage (host, request, false, true);
             return status;
         } else {
             if (request->data_size == 0) {
                 // Send setup packet
-                bool status = hci_transfer_stage (host_device, request, false, false);
+                bool status = hci_transfer_stage (host, request, false, false);
                 // Receive ack from device
-                status &= hci_transfer_stage (host_device, request, true, true);
+                status &= hci_transfer_stage (host, request, true, true);
                 return status;
             } else {
                 // Send setup packet
-                bool status = hci_transfer_stage (host_device, request, false, false);
+                bool status = hci_transfer_stage (host, request, false, false);
                 // Send data to device
-                status &= hci_transfer_stage (host_device, request, false, false);
+                status &= hci_transfer_stage (host, request, false, false);
                 // Received ack from device
-                status &= hci_transfer_stage (host_device, request, true, true);
+                status &= hci_transfer_stage (host, request, true, true);
                 return status;
             }
         }
     } else {
         // Interrupt or Bulk Type Endpoint
         bool status =
-        hci_transfer_stage (host_device, request, request->endpoint->is_direction_in, false);
+        hci_transfer_stage (host, request, request->pendpoint->is_direction_in, false);
         return status;
     }
 }
 
 static s32 hci_control_message (
 hci_device_t* host,
+endpoint_t* endpoint,
 request_type_t bmreq_type,
 request_code_t breq_code,
 u16 wvalue,
@@ -480,16 +543,15 @@ void* data) {
     setup_data.windex         = windex;
     setup_data.wlength        = wlength;
 
-    usb_device_t* device = host->root_port.device;
     usb_request_t request;
-    request.endpoint   = &device->endpoint;
-    request.data       = data;
+    request.pendpoint  = endpoint;
+    request.pdata      = data;
     request.data_size  = wlength;
     request.setup_data = setup_data;
 
     ASSERT (
-    (device->endpoint.type == eEND_POINT_TYPE_CONTROL),
-    "USB invalid end point type for control msg [%u]", device->endpoint.type);
+    (endpoint->type == eEND_POINT_TYPE_CONTROL),
+    "USB invalid end point type for control msg [%u]", endpoint->type);
 
     s32 result = -1;
     if (hci_submit_blocking_request (host, &request)) {
@@ -498,20 +560,29 @@ void* data) {
     return result;
 }
 
-static s32 hci_get_descriptor (hci_device_t* host_device, void* buffer, u16 buff_size, descriptor_type_t desc_type) {
+static s32
+hci_get_descriptor (hci_device_t* host, void* desc_receive_buf, u16 desc_size_nbytes, descriptor_type_t desc_type) {
 
     return hci_control_message (
-    host_device, eREQUEST_TYPE_IN, eREQUEST_CODE_GET_DESCRIPTOR,
-    (desc_type << 8) | 0, 0, buff_size, buffer);
+    host, &host->usb_device.endpoint, eREQUEST_TYPE_IN, eREQUEST_CODE_GET_DESCRIPTOR,
+    (desc_type << 8) | 0, 0, desc_size_nbytes, desc_receive_buf);
+}
+
+static void usb_endpoint_init_ (hci_device_t* host, endpoint_t* endpoint) {
+    memset (endpoint, 0, sizeof (endpoint_t));
+    endpoint->type            = eEND_POINT_TYPE_CONTROL;
+    endpoint->is_direction_in = false;
+    endpoint->pid             = ePID_SETUP;
+    endpoint->max_packet_size = USB_DEFAULT_MAX_PACKET_SIZE;
+    endpoint->number          = 0;
 }
 
 static usb_status_t
 usb_device_init (hci_device_t* host, usb_device_t* device, usb_speed_t speed) {
-    endpoint_t endpoint      = ENDPOINT_INIT ();
-    device_descriptor_t desc = { 0 };
-
-    device->endpoint    = endpoint;
-    device->desc        = desc;
+    memset (device, 0, sizeof (usb_device_t));
+    usb_endpoint_init_ (host, &device->endpoint);
+    // device->desc        = 0;
+    device->address     = 0; // Default device address
     device->speed       = speed;
     device->address     = 0;
     device->hub_address = 0;
@@ -526,14 +597,14 @@ usb_device_init (hci_device_t* host, usb_device_t* device, usb_speed_t speed) {
     return eUSB_STATUS_OK;
 }
 
-usb_status_t
-hci_root_port_init (hci_device_t* host, usb_device_t* device, hci_root_port_t* port) {
+static bool
+hci_root_port_init_ (hci_device_t* host, usb_device_t* device, hci_root_port_t* port) {
     port->device = device;
     port->host   = host;
 
     usb_speed_t speed = hci_get_port_speed ();
     if (speed == eUSB_SPEED_UNKNOWN) {
-        return eUSB_STATUS_ERROR;
+        return false;
     }
 
     usb_status_t status = usb_device_init (host, device, speed);
@@ -541,13 +612,7 @@ hci_root_port_init (hci_device_t* host, usb_device_t* device, hci_root_port_t* p
         LOG_ERROR ("USB failed to setup root port");
         return status;
     }
-    return eUSB_STATUS_OK;
-}
-
-static void hci_device_init (hci_device_t* host) {
-    if (hci_root_port_init (host, &host->usb_device, &host->root_port) != eUSB_STATUS_OK) {
-        LOG_ERROR ("USB failed to initialize Root Port");
-    }
+    return true;
 }
 
 static void hci_channel_irq_handler_ (hci_device_t* host, u32 chan) {
@@ -559,18 +624,18 @@ static void hci_channel_irq_handler_ (hci_device_t* host, u32 chan) {
         hci_start_channel (host, stage_data);
         return;
     case eSTAGE_SUB_STATE_WAIT_FOR_TRANSACTION_COMPLETE:
-        invalidate_data_cache_vaddr (
-        (uintptr_t)stage_data->transfer_buf, stage_data->transfer_size_nbytes);
         u32 transfer_size  = read32 (HOST_CHAN_TRANSFER_INFO_REG (chan));
         u32 chan_interrupt = read32 (HOST_CHAN_INT_REG (chan));
         /*
          * If the transaction is halted (1 << 1) then restart it
          */
         if (chan_interrupt == (1 << 1)) {
-            // LOG_DEBUG ("USB transaction was halted");
+            // LOG_DEBUG ("USB transaction was halted [0x%X]", chan_interrupt);
             hci_start_transaction (host, stage_data);
             return;
         }
+        invalidate_data_cache_vaddr (
+        (uintptr_t)stage_data->ptransfer_buf, stage_data->nbytes_per_transaction);
         u32 npackets_left = (transfer_size >> 19) & 0x3FF;
         u32 nbytes_left   = transfer_size & 0x7FFFF;
         /*
@@ -585,30 +650,30 @@ static void hci_channel_irq_handler_ (hci_device_t* host, u32 chan) {
             // }
             LOG_ERROR ("USB transaction on channel [%u] has errors [0x%X]", chan, chan_interrupt);
         }
-        u32 npackets_sent = stage_data->transfer_size_npackets - npackets_left;
-        u32 nbytes_sent   = stage_data->transfer_size_nbytes - nbytes_left;
-        pid_t* next_pid   = &stage_data->request_data->endpoint->next_pid;
+        u32 npackets_sent = stage_data->total_tsize_npackets - npackets_left;
+        u32 nbytes_sent   = stage_data->total_tsize_nbytes - nbytes_left;
+        pid_t* pid        = &stage_data->pendpoint->pid;
         LOG_INFO (
         "USB packets/bytes left [%u]/[%u] packets/bytes sent [%u]/[%u]",
         npackets_left, nbytes_left, npackets_sent, nbytes_sent);
         if (stage_data->status_stage == false) {
-            switch (*next_pid) {
-            case ePID_SETUP: *next_pid = ePID_DATA_1; break;
+            switch (*pid) {
+            case ePID_SETUP: *pid = ePID_DATA_1; break;
             case ePID_DATA_0:
                 if (npackets_sent & 1) {
-                    *next_pid = ePID_DATA_1;
+                    *pid = ePID_DATA_1;
                 }
                 break;
             case ePID_DATA_1:
                 if (npackets_sent & 1) {
-                    *next_pid = ePID_DATA_0;
+                    *pid = ePID_DATA_0;
                 }
                 break;
             }
         }
-        stage_data->transfer_size_npackets -= npackets_sent;
-        stage_data->transfer_size_nbytes -= nbytes_sent;
-        stage_data->transfer_buf = ((u8*)stage_data->transfer_buf) + nbytes_sent;
+        stage_data->total_packets_sent += npackets_sent;
+        stage_data->total_bytes_sent += nbytes_sent;
+        stage_data->ptransfer_buf = ((u8*)stage_data->ptransfer_buf) + nbytes_sent;
         break;
     default:
         ASSERT (false, "USB stage_data has invalid substate [%u]", stage_data->sub_state);
@@ -618,7 +683,7 @@ static void hci_channel_irq_handler_ (hci_device_t* host, u32 chan) {
 
 static void hci_irq_handler_ (u32 irq_id, void* context) {
     u32 int_status = read32 (CORE_INT_STATUS_REG);
-    LOG_INFO ("USB inside interrupt handler");
+    // LOG_INFO ("USB inside interrupt handler");
     if (context == NULLPTR) {
         LOG_ERROR ("USB interrupt handler device is null");
         return;
@@ -668,7 +733,28 @@ static void hci_irq_handler_ (u32 irq_id, void* context) {
     }
 }
 
+void rescan_devices (hci_device_t* host) {
+    while (host->is_rootport_enabled == false) {
+        if (host->is_rootport_enabled == false) {
+            if (enable_root_port_ (host)) {
+                host->is_rootport_enabled = true;
+                if (hci_root_port_init_ (host, &host->usb_device, &host->root_port) == false) {
+                    LOG_ERROR ("USB failed to initialize root port");
+                }
+            } else {
+                LOG_ERROR (
+                "USB failed to ENABLE root port. No device connected to "
+                "the root port");
+            }
+        }
+        wait_ms (1000);
+    }
+}
+
 usb_status_t hci_init (hci_device_t* host) {
+    memset (host, 0, sizeof (hci_device_t));
+    host->is_plugnplay = true;
+
     usb_status_t status = eUSB_STATUS_OK;
     u32 vendor_id       = read32 (CORE_VENDOR_ID_REG);
     if (vendor_id != 0x4F54280A) {
@@ -697,20 +783,7 @@ usb_status_t hci_init (hci_device_t* host) {
         LOG_ERROR ("USB failed to init host");
         return status;
     }
-    LOG_INFO ("USB successfully setup Vendor ID [%X]", vendor_id);
-
-    hci_device_init (host);
+    LOG_INFO ("USB successfully initialized core and host with Vendor ID [%X]", vendor_id);
+    rescan_devices (host);
     return eUSB_STATUS_OK;
-}
-
-hci_device_t* hci_device_create (void) {
-    for (u32 i = 0; i < MAX_NDEVICES; ++i) {
-        if (allocated_hci_devices_[i] == false) {
-            allocated_hci_devices_[i] = true;
-            hci_device_t* dev         = &hci_devices_[i];
-            memset ((void*)dev, 0, sizeof (hci_device_t));
-            return dev;
-        }
-    }
-    return NULLPTR;
 }
