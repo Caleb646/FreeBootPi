@@ -1,5 +1,5 @@
-#ifndef _USB_H
-#define _USB_H
+#ifndef _USB_2_H
+#define _USB_2_H
 
 #include "base.h"
 
@@ -259,4 +259,4 @@ usb_status_t hci_init (hci_device_t* host);
 
 #endif // __ASSEMBLER__
 
-#endif /*_USB_H */
+#endif /*_USB_2_H */

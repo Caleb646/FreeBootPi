@@ -13,7 +13,8 @@
         "stacktrace": "c",
         "stdarg.h": "c",
         "vpu.h": "c",
-        "time.h": "c"
+        "time.h": "c",
+        "ranges": "c"
     },
     "editor.formatOnSave": true,
     "editor.defaultFormatter": "xaver.clang-format",
