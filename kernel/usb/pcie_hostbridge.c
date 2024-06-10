@@ -21,21 +21,9 @@
 //
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
-//
-// #include <circle/bcmpciehostbridge.h>
-// #include <circle/memio.h>
-// #include <circle/bcm2711.h>
-// #include <circle/bcm2712.h>
-// #include <circle/pci_regs.h>
-// #include <circle/logger.h>
-// #include <circle/sysconfig.h>
-// #include <circle/machineinfo.h>
-// #include <circle/util.h>
-// #include <circle/macros.h>
-// #include <circle/debug.h>
-// #include <assert.h>
 
 #include "usb/pcie_hostbridge.h"
+#include "peripherals/timer.h"
 
 #define PCIE_GEN                                 2
 
@@ -221,67 +209,32 @@
 #define PCI_SLOT(devfn)       (((devfn) >> 3) & 0x1f)
 #define PCI_FUNC(devfn)       ((devfn)&0x07)
 
-#define lower_32_bits(v)      ((v)&0xFFFFFFFFU)
-#define upper_32_bits(v)      ((v) >> 32)
+#define lower_32_bits(v)      (v & 0xFFFFFFFFU)
+#define upper_32_bits(v)      (v >> 32)
 
-typedef struct TPCIeMemoryWindow {
-    u64 pcie_addr;
-    u64 cpu_addr;
-    u64 size;
-} TPCIeMemoryWindow;
-
-typedef void TPCIeMSIHandler (unsigned nVector, void* pParam);
-
-typedef struct TPCIeMSIData {
-    uintptr_t base;
-    u64 target_addr;
-    uintptr_t intr_base; // base of interrupt status/set/clr regs
-    u32 rev;
-    TPCIeMSIHandler* handler;
-    void* param;
-} TPCIeMSIData;
-
-typedef struct PCIeHostBridge {
-    uintptr_t m_base; // mmio base address
-    u32 m_rev;        // controller revision
-
-    TPCIeMemoryWindow m_out_wins[1]; // outbound window
-    s32 m_num_out_wins;
-
-    TPCIeMemoryWindow m_dma_ranges[1]; // inbound window
-    s32 m_num_dma_ranges;
-    u64 m_scb_size[1];
-    s32 m_num_scbs;
-
-    u64 m_msi_target_addr;
-    TPCIeMSIData* m_msi;
-
-    u64 s_nDMAAddress;
-
-} PCIeHostBridge;
-
-static PCIeHostBridge host_bridge_ = { 0 };
-
-static const char FromPCIeHost[] = "pcie";
+static pcie_hostbridge_t host_bridge_ = { 0 };
+static pcie_msi_data_t msi_data_      = { 0 };
 
 #define ARM_PCIE_HOST_BASE 0xFD500000
 #define ARM_PCIE_HOST_END  (ARM_PCIE_HOST_BASE + 0x930F)
 
-static int pcie_probe (void);
-static int pcie_setup (void);
-static int enable_bridge (void);
-static int enable_device (u32 nClassCode, unsigned nSlot, unsigned nFunc);
-static int pcie_set_pci_ranges (void);
-static int pcie_set_dma_ranges (void);
-static void pcie_set_outbound_win (unsigned win, u64 cpu_addr, u64 pcie_addr, u64 size);
-static uintptr_t pcie_map_conf (unsigned busnr, unsigned devfn, int where);
+static int pcie_probe (pcie_hostbridge_t* host);
+static int pcie_setup (pcie_hostbridge_t* host);
+static int enable_bridge (pcie_hostbridge_t* host);
+static int enable_device (pcie_hostbridge_t* host, u32 nClassCode, unsigned nSlot, unsigned nFunc);
+static int pcie_set_pci_ranges (pcie_hostbridge_t* host);
+static int pcie_set_dma_ranges (pcie_hostbridge_t* host);
+static void
+pcie_set_outbound_win (pcie_hostbridge_t* host, unsigned win, u64 cpu_addr, u64 pcie_addr, u64 size);
+static uintptr_t
+pcie_map_conf (pcie_hostbridge_t* host, unsigned busnr, unsigned devfn, int where);
 static uintptr_t find_pci_capability (uintptr_t nPCIConfig, u8 uchCapID);
-static void pcie_bridge_sw_init_set (unsigned val);
-static void pcie_perst_set (unsigned int val);
-static bool pcie_link_up (void);
-static bool pcie_rc_mode (void);
-static int pcie_enable_msi (TPCIeMSIHandler* pHandler, void* pParam);
-static void msi_set_regs (TPCIeMSIData* msi);
+static void pcie_bridge_sw_init_set (pcie_hostbridge_t* host, unsigned val);
+static void pcie_perst_set (pcie_hostbridge_t* host, unsigned int val);
+static bool pcie_link_up (pcie_hostbridge_t* host);
+static bool pcie_rc_mode (pcie_hostbridge_t* host);
+static int pcie_enable_msi (pcie_hostbridge_t* host, pcie_msi_handler_t* pHandler, void* pParam);
+static void msi_set_regs (pcie_msi_data_t* msi);
 static int cfg_index (int busnr, int devfn, int reg);
 static void set_gen (uintptr_t base, int gen);
 static const char* link_speed_to_str (int s);
@@ -289,14 +242,14 @@ static int encode_ibar_size (u64 size);
 static u32 rd_fld (uintptr_t p, u32 mask, int shift);
 static void wr_fld (uintptr_t p, u32 mask, int shift, u32 val);
 static void wr_fld_rb (uintptr_t p, u32 mask, int shift, u32 val);
-static void InterruptHandler (void* pParam);
+// static void InterruptHandler (void* pParam);
 static void usleep_range (unsigned min, unsigned max);
 static void msleep (unsigned ms);
 static int ilog2 (u64 v);
 
 
-PCIeHostBridge* PCIeHostBridgeCreate (void) {
-    memset (&host_bridge_, 0, sizeof (PCIeHostBridge));
+pcie_hostbridge_t* pcie_hostbridge_create (void) {
+    memset (&host_bridge_, 0, sizeof (pcie_hostbridge_t));
     host_bridge_.m_base = ARM_PCIE_HOST_BASE;
     return &host_bridge_;
 }
@@ -311,13 +264,13 @@ PCIeHostBridge* PCIeHostBridgeCreate (void) {
 // 	m_pInterrupt = 0;
 // }
 
-bool PCIeHostBridgeInitialize (PCIeHostBridge* host) {
-    int ret = pcie_probe ();
+bool pcie_hostbridge_init (pcie_hostbridge_t* host) {
+    int ret = pcie_probe (host);
     if (ret) {
         LOG_ERROR ("PCIe cannot initialize PCIe bridge");
         return false;
     }
-    ret = enable_bridge ();
+    ret = enable_bridge (host);
     if (ret) {
         LOG_ERROR ("PCIe Cannot enable PCIe bridge");
         return false;
@@ -325,15 +278,15 @@ bool PCIeHostBridgeInitialize (PCIeHostBridge* host) {
     return true;
 }
 
-bool PCIeHostBridgeEnableDevice (u32 nClassCode, unsigned nSlot, unsigned nFunc) {
-    return !enable_device (nClassCode, nSlot, nFunc);
+bool pcie_hostbridge_enable_device (pcie_hostbridge_t* host, u32 nClassCode, unsigned nSlot, unsigned nFunc) {
+    return !enable_device (host, nClassCode, nSlot, nFunc);
 }
 
-bool PCIeHostBridgeConnectMSI (TPCIeMSIHandler* pHandler, void* pParam) {
-    return !pcie_enable_msi (pHandler, pParam);
+bool pcie_hostbridge_connect_msi (pcie_hostbridge_t* host, pcie_msi_handler_t* pHandler, void* pParam) {
+    return !pcie_enable_msi (host, pHandler, pParam);
 }
 
-void PCIeHostBridgeDisconnectMSI (PCIeHostBridge* host) {
+void pcie_hostbridge_disconnect_msi (pcie_hostbridge_t* host) {
     bcm_writel (0xffffffff, host->m_msi->intr_base + MASK_SET);
     bcm_writel (0, host->m_msi->base + PCIE_MISC_MSI_BAR_CONFIG_LO);
 
@@ -344,30 +297,30 @@ void PCIeHostBridgeDisconnectMSI (PCIeHostBridge* host) {
     host->m_msi = NULLPTR;
 }
 
-static int pcie_probe (void) {
-    int ret = pcie_set_pci_ranges ();
+static int pcie_probe (pcie_hostbridge_t* host) {
+    int ret = pcie_set_pci_ranges (host);
     if (ret)
         return ret;
 
-    ret = pcie_set_dma_ranges ();
+    ret = pcie_set_dma_ranges (host);
     if (ret)
         return ret;
 
-    return pcie_setup ();
+    return pcie_setup (host);
 }
 
-static int pcie_setup (PCIeHostBridge* host) {
+static int pcie_setup (pcie_hostbridge_t* host) {
     unsigned int scb_size_val;
     u64 rc_bar2_offset, rc_bar2_size, total_mem_size = 0;
     u32 tmp;
     int i, j, limit;
     /* Reset the bridge */
-    pcie_bridge_sw_init_set (1);
+    pcie_bridge_sw_init_set (host, 1);
     /* Ensure that the fundamental reset is asserted */
-    pcie_perst_set (1);
+    pcie_perst_set (host, 1);
     usleep_range (100, 200);
     /* Take the bridge out of reset */
-    pcie_bridge_sw_init_set (0);
+    pcie_bridge_sw_init_set (host, 0);
 
     WR_FLD_RB (host->m_base, PCIE_MISC_HARD_PCIE_HARD_DEBUG, SERDES_IDDQ, 0);
     /* Wait for SerDes to be stable */
@@ -440,7 +393,7 @@ static int pcie_setup (PCIeHostBridge* host) {
 
     scb_size_val = host->m_scb_size[0] ? ilog2 (host->m_scb_size[0]) - 15 : 0xf; /* 0xf is 1GB */
     WR_FLD (host->m_base, PCIE_MISC_MISC_CTRL, SCB0_SIZE, scb_size_val);
-    assert (host->m_num_scbs == 1); // do not set fields SCB1_SIZE and SCB2_SIZE
+    ASSERT (host->m_num_scbs == 1, "PCI num scbs is 1"); // do not set fields SCB1_SIZE and SCB2_SIZE
 
     /* disable the PCIe->GISB memory window (RC_BAR1) */
     WR_FLD (host->m_base, PCIE_MISC_RC_BAR1_CONFIG_LO, SIZE, 0);
@@ -460,7 +413,7 @@ static int pcie_setup (PCIeHostBridge* host) {
     // Start link follows:
 
     /* Unassert the fundamental reset */
-    pcie_perst_set (0);
+    pcie_perst_set (host, 0);
 
     /*
      * Wait for 100ms after PERST# deassertion; see PCIe CEM specification
@@ -475,15 +428,15 @@ static int pcie_setup (PCIeHostBridge* host) {
      * we do know the device is there.
      */
     limit = 100;
-    for (i = 1, j = 0; j < limit && !pcie_link_up (); j += i, i = i * 2)
+    for (i = 1, j = 0; j < limit && !pcie_link_up (host); j += i, i = i * 2)
         msleep (i + j > limit ? limit - j : i);
 
-    if (!pcie_link_up ()) {
+    if (!pcie_link_up (host)) {
         LOG_ERROR ("PCIe link down");
         return -1;
     }
 
-    if (!pcie_rc_mode ()) {
+    if (!pcie_rc_mode (host)) {
         LOG_ERROR ("PCIe misconfigured; is in EP mode");
         return -1;
     }
@@ -491,7 +444,7 @@ static int pcie_setup (PCIeHostBridge* host) {
     // This was done earlier for RASPPI >= 5
     for (i = 0; i < host->m_num_out_wins; i++)
         pcie_set_outbound_win (
-        i, host->m_out_wins[i].cpu_addr, host->m_out_wins[i].pcie_addr,
+        host, i, host->m_out_wins[i].cpu_addr, host->m_out_wins[i].pcie_addr,
         host->m_out_wins[i].size);
 
     /*
@@ -506,7 +459,7 @@ static int pcie_setup (PCIeHostBridge* host) {
     u16 lnksta = bcm_readw (host->m_base + BRCM_PCIE_CAP_REGS + PCI_EXP_LNKSTA);
     u16 cls    = lnksta & PCI_EXP_LNKSTA_CLS;
     u16 nlw    = (lnksta & PCI_EXP_LNKSTA_NLW) >> PCI_EXP_LNKSTA_NLW_SHIFT;
-    LOG_ERROR ("PCIe link up, %s Gbps x%u", link_speed_to_str (cls), nlw);
+    LOG_INFO ("PCIe link up, %s Gbps x%u", link_speed_to_str (cls), nlw);
     /* PCIe->SCB endian mode for BAR */
     /* field ENDIAN_MODE_BAR2 = DATA_ENDIAN */
     WR_FLD_RB (host->m_base, PCIE_RC_CFG_VENDOR_VENDOR_SPECIFIC_REG1, ENDIAN_MODE_BAR2, DATA_ENDIAN);
@@ -515,12 +468,11 @@ static int pcie_setup (PCIeHostBridge* host) {
      * is enabled =>  setting the CLKREQ_DEBUG_ENABLE field to 1.
      */
     WR_FLD_RB (host->m_base, PCIE_MISC_HARD_PCIE_HARD_DEBUG, CLKREQ_DEBUG_ENABLE, 1);
-
     return 0;
 }
 
-static int enable_bridge (void) {
-    uintptr_t conf = pcie_map_conf (PCI_BUS (0), PCI_DEVFN (0, 0), 0);
+static int enable_bridge (pcie_hostbridge_t* host) {
+    uintptr_t conf = pcie_map_conf (host, PCI_BUS (0), PCI_DEVFN (0, 0), 0);
     if (!conf)
         return -1;
 #define PCI_CLASS_REVISION     0x08 /* High 24 bits are class, low 8 revision */
@@ -532,25 +484,21 @@ static int enable_bridge (void) {
 #define PCI_MEMORY_BASE        0x20 /* Memory range behind */
 #define PCI_MEMORY_LIMIT       0x22
 #define PCI_BRIDGE_CONTROL     0x3e
-#define PCI_BRIDGE_CTL_PARITY \
-    0x01 /* Enable parity detection on secondary interface */
-#define PCI_CAP_LIST_ID           0      /* Capability ID */
-#define PCI_CAP_ID_EXP            0x10   /* PCI Express */
-#define PCI_EXP_RTCTL             28     /* Root Control */
-#define PCI_EXP_RTCTL_CRSSVE      0x0010 /* CRS Software Visibility Enable */
-#define PCI_COMMAND               0x04   /* 16 bits */
-#define PCI_COMMAND_MEMORY        0x2    /* Enable response in Memory space */
-#define PCI_COMMAND_MASTER        0x4    /* Enable bus mastering */
-#define PCI_COMMAND_PARITY        0x40   /* Enable parity checking */
-#define PCI_COMMAND_SERR          0x100  /* Enable SERR */
+/* Enable parity detection on secondary interface */
+#define PCI_BRIDGE_CTL_PARITY  0x01
+#define PCI_CAP_LIST_ID        0      /* Capability ID */
+#define PCI_CAP_ID_EXP         0x10   /* PCI Express */
+#define PCI_EXP_RTCTL          28     /* Root Control */
+#define PCI_EXP_RTCTL_CRSSVE   0x0010 /* CRS Software Visibility Enable */
+#define PCI_COMMAND            0x04   /* 16 bits */
+#define PCI_COMMAND_MEMORY     0x2    /* Enable response in Memory space */
+#define PCI_COMMAND_MASTER     0x4    /* Enable bus mastering */
+#define PCI_COMMAND_PARITY     0x40   /* Enable parity checking */
+#define PCI_COMMAND_SERR       0x100  /* Enable SERR */
 
-#define MEM_PCIE_RANGE_START      0x600000000UL
-#define MEM_PCIE_RANGE_SIZE       0x4000000UL
-#define MEM_PCIE_RANGE_PCIE_START 0xF8000000UL // mapping on PCIe side
 
     if (read32 (conf + PCI_CLASS_REVISION) >> 8 != 0x060400 || read8 (conf + PCI_HEADER_TYPE) != PCI_HEADER_TYPE_BRIDGE)
         return -1;
-
     write8 (conf + PCI_CACHE_LINE_SIZE, 64 / 4); // TODO: get this from cache config
 
     write8 (conf + PCI_SECONDARY_BUS, PCI_BUS (1));
@@ -561,22 +509,23 @@ static int enable_bridge (void) {
 
     write8 (conf + PCI_BRIDGE_CONTROL, PCI_BRIDGE_CTL_PARITY);
 
-    assert (read8 (conf + BRCM_PCIE_CAP_REGS + PCI_CAP_LIST_ID) == PCI_CAP_ID_EXP);
+    ASSERT (read8 (conf + BRCM_PCIE_CAP_REGS + PCI_CAP_LIST_ID) == PCI_CAP_ID_EXP, "PCIe cap id not equal to expected value");
     write8 (conf + BRCM_PCIE_CAP_REGS + PCI_EXP_RTCTL, PCI_EXP_RTCTL_CRSSVE);
 
     write16 (conf + PCI_COMMAND, PCI_COMMAND_MEMORY | PCI_COMMAND_MASTER | PCI_COMMAND_PARITY | PCI_COMMAND_SERR);
-
     return 0;
 }
 
-static int enable_device (u32 nClassCode, unsigned nSlot, unsigned nFunc) {
-    assert (nClassCode >> 24 == 0);
-    assert (nSlot < 32);
-    assert (nFunc < 8);
+static int enable_device (pcie_hostbridge_t* host, u32 nClassCode, unsigned nSlot, unsigned nFunc) {
+    ASSERT (nClassCode >> 24 == 0, "PCIe");
+    ASSERT (nSlot < 32, "PCIe number of slots is not < 32");
+    ASSERT (nFunc < 8, "PCIe number of functions is not < 8");
 
-    uintptr_t conf = pcie_map_conf (PCI_BUS (1), PCI_DEVFN (nSlot, nFunc), 0);
+    uintptr_t conf = pcie_map_conf (host, PCI_BUS (1), PCI_DEVFN (nSlot, nFunc), 0);
     if (!conf)
         return -1;
+
+#define PCI_HEADER_TYPE_NORMAL 0
 
     if (read32 (conf + PCI_CLASS_REVISION) >> 8 != nClassCode || read8 (conf + PCI_HEADER_TYPE) != PCI_HEADER_TYPE_NORMAL)
         return -1;
@@ -603,7 +552,7 @@ static int enable_device (u32 nClassCode, unsigned nSlot, unsigned nFunc) {
     return 0;
 }
 
-static int pcie_set_pci_ranges (PCIeHostBridge* host) {
+static int pcie_set_pci_ranges (pcie_hostbridge_t* host) {
     ASSERT (host->m_num_out_wins == 0, "PCIe num out wins");
 
     host->m_out_wins[0].cpu_addr  = MEM_PCIE_RANGE_START;
@@ -614,7 +563,7 @@ static int pcie_set_pci_ranges (PCIeHostBridge* host) {
     return 0;
 }
 
-static int pcie_set_dma_ranges (PCIeHostBridge* host) {
+static int pcie_set_dma_ranges (pcie_hostbridge_t* host) {
     ASSERT (host->m_num_dma_ranges == 0, "PCIe num dma ranges is 0");
 #define MEM_PCIE_DMA_RANGE_PCIE_START 0UL // mapping on PCIe side
 #define MEM_PCIE_DMA_RANGE_START      0UL
@@ -629,7 +578,7 @@ static int pcie_set_dma_ranges (PCIeHostBridge* host) {
 }
 
 static void
-pcie_set_outbound_win (PCIeHostBridge* host, unsigned win, u64 cpu_addr, u64 pcie_addr, u64 size) {
+pcie_set_outbound_win (pcie_hostbridge_t* host, unsigned win, u64 cpu_addr, u64 pcie_addr, u64 size) {
     u64 cpu_addr_mb, limit_addr_mb;
     u32 tmp;
 
@@ -656,7 +605,7 @@ pcie_set_outbound_win (PCIeHostBridge* host, unsigned win, u64 cpu_addr, u64 pci
 }
 
 static uintptr_t
-pcie_map_conf (PCIeHostBridge* host, unsigned busnr, unsigned devfn, int where) {
+pcie_map_conf (pcie_hostbridge_t* host, unsigned busnr, unsigned devfn, int where) {
     /* Accesses to the RC go right to the RC registers if slot==0 */
     if (busnr == 0)
         return PCI_SLOT (devfn) ? 0 : host->m_base + where;
@@ -693,17 +642,17 @@ static uintptr_t find_pci_capability (uintptr_t nPCIConfig, u8 uchCapID) {
     return 0;
 }
 
-static void pcie_bridge_sw_init_set (PCIeHostBridge* host, unsigned val) {
+static void pcie_bridge_sw_init_set (pcie_hostbridge_t* host, unsigned val) {
     unsigned shift = RGR1_SW_INIT_1_INIT_GENERIC_SHIFT;
     u32 mask       = RGR1_SW_INIT_1_INIT_GENERIC_MASK;
     wr_fld_rb (host->m_base + PCIE_RGR1_SW_INIT_1, mask, shift, val);
 }
 
-static void pcie_perst_set (PCIeHostBridge* host, unsigned int val) {
+static void pcie_perst_set (pcie_hostbridge_t* host, unsigned int val) {
     wr_fld_rb (host->m_base + PCIE_RGR1_SW_INIT_1, PCIE_RGR1_SW_INIT_1_PERST_MASK, PCIE_RGR1_SW_INIT_1_PERST_SHIFT, val);
 }
 
-static bool pcie_link_up (PCIeHostBridge* host) {
+static bool pcie_link_up (pcie_hostbridge_t* host) {
     u32 val = bcm_readl (host->m_base + PCIE_MISC_PCIE_STATUS);
     u32 dla = EXTRACT_FIELD (val, PCIE_MISC_PCIE_STATUS, PCIE_DL_ACTIVE);
     u32 plu = EXTRACT_FIELD (val, PCIE_MISC_PCIE_STATUS, PCIE_PHYLINKUP);
@@ -712,15 +661,16 @@ static bool pcie_link_up (PCIeHostBridge* host) {
 }
 
 /* The controller is capable of serving in both RC and EP roles */
-static bool pcie_rc_mode (PCIeHostBridge* host) {
+static bool pcie_rc_mode (pcie_hostbridge_t* host) {
     u32 val = bcm_readl (host->m_base + PCIE_MISC_PCIE_STATUS);
     return !!EXTRACT_FIELD (val, PCIE_MISC_PCIE_STATUS, PCIE_PORT);
 }
 
-static int pcie_enable_msi (PCIeHostBridge* host, TPCIeMSIHandler* pHandler, void* pParam) {
+static int pcie_enable_msi (pcie_hostbridge_t* host, pcie_msi_handler_t* pHandler, void* pParam) {
     ASSERT (pHandler != NULLPTR, "PCIe msi handler is null");
+    memset (&msi_data_, 0, sizeof (pcie_msi_data_t));
 
-    host->m_msi = new TPCIeMSIData;
+    host->m_msi = &msi_data_;
     if (!host->m_msi)
         return -1;
     memset (host->m_msi, 0, sizeof *host->m_msi);
@@ -731,6 +681,7 @@ static int pcie_enable_msi (PCIeHostBridge* host, TPCIeMSIHandler* pHandler, voi
     host->m_msi->handler     = pHandler;
     host->m_msi->param       = pParam;
 
+    // TODO: setup interrupt system
     // assert (m_pInterrupt != 0);
     // m_pInterrupt->ConnectIRQ (ARM_IRQ_PCIE_HOST_MSI, InterruptHandler, m_msi);
 
@@ -742,8 +693,8 @@ static int pcie_enable_msi (PCIeHostBridge* host, TPCIeMSIHandler* pHandler, voi
     return 0;
 }
 
-void CBcmPCIeHostBridge::msi_set_regs (TPCIeMSIData* msi) {
-    assert (msi->rev >= BRCM_PCIE_HW_REV_33);
+static void msi_set_regs (pcie_msi_data_t* msi) {
+    ASSERT (msi->rev >= BRCM_PCIE_HW_REV_33, "PCIe not equal to rev 33");
     /*
      * ffe0 -- least sig 5 bits are 0 indicating 32 msgs
      * 6540 -- this is our arbitrary unique data value
@@ -768,14 +719,18 @@ void CBcmPCIeHostBridge::msi_set_regs (TPCIeMSIData* msi) {
 }
 
 /* Configuration space read/write support */
-int CBcmPCIeHostBridge::cfg_index (int busnr, int devfn, int reg) {
+static int cfg_index (int busnr, int devfn, int reg) {
     return ((PCI_SLOT (devfn) & 0x1f) << PCIE_SLOT_SHIFT) |
            ((PCI_FUNC (devfn) & 0x07) << PCIE_FUNC_SHIFT) |
            (busnr << PCIE_BUSNUM_SHIFT) | (reg & ~3);
 }
 
 /* Limits operation to a specific generation (1, 2, or 3) */
-void CBcmPCIeHostBridge::set_gen (uintptr base, int gen) {
+static void set_gen (uintptr_t base, int gen) {
+#define PCI_EXP_LNKCAP     12         /* Link Capabilities */
+#define PCI_EXP_LNKCTL2    48         /* Link Control 2 */
+#define PCI_EXP_LNKCAP_SLS 0x0000000f /* Supported Link Speeds */
+
     u32 lnkcap  = bcm_readl (base + BRCM_PCIE_CAP_REGS + PCI_EXP_LNKCAP);
     u16 lnkctl2 = bcm_readw (base + BRCM_PCIE_CAP_REGS + PCI_EXP_LNKCTL2);
 
@@ -786,7 +741,7 @@ void CBcmPCIeHostBridge::set_gen (uintptr base, int gen) {
     bcm_writew (lnkctl2, base + BRCM_PCIE_CAP_REGS + PCI_EXP_LNKCTL2);
 }
 
-const char* CBcmPCIeHostBridge::link_speed_to_str (int s) {
+static const char* link_speed_to_str (int s) {
     switch (s) {
     case 1: return "2.5";
     case 2: return "5.0";
@@ -800,7 +755,7 @@ const char* CBcmPCIeHostBridge::link_speed_to_str (int s) {
  * This is to convert the size of the inbound "BAR" region to the
  * non-linear values of PCIE_X_MISC_RC_BAR[123]_CONFIG_LO.SIZE
  */
-int CBcmPCIeHostBridge::encode_ibar_size (u64 size) {
+static int encode_ibar_size (u64 size) {
     int log2_in = ilog2 (size);
 
     if (log2_in >= 12 && log2_in <= 15)
@@ -813,57 +768,57 @@ int CBcmPCIeHostBridge::encode_ibar_size (u64 size) {
     return 0;
 }
 
-u32 CBcmPCIeHostBridge::rd_fld (uintptr p, u32 mask, int shift) {
+static u32 rd_fld (uintptr_t p, u32 mask, int shift) {
     return (bcm_readl (p) & mask) >> shift;
 }
 
-void CBcmPCIeHostBridge::wr_fld (uintptr p, u32 mask, int shift, u32 val) {
+static void wr_fld (uintptr_t p, u32 mask, int shift, u32 val) {
     u32 reg = bcm_readl (p);
 
     reg = (reg & ~mask) | ((val << shift) & mask);
     bcm_writel (reg, p);
 }
 
-void CBcmPCIeHostBridge::wr_fld_rb (uintptr p, u32 mask, int shift, u32 val) {
+static void wr_fld_rb (uintptr_t p, u32 mask, int shift, u32 val) {
     wr_fld (p, mask, shift, val);
     (void)bcm_readl (p);
 }
 
-void CBcmPCIeHostBridge::InterruptHandler (void* pParam) {
-    TPCIeMSIData* msi = (TPCIeMSIData*)pParam;
-    assert (msi != 0);
+// static void InterruptHandler (void* pParam) {
+//     pcie_msi_data_t* msi = (pcie_msi_data_t*)pParam;
+//     ASSERT (msi != NULLPTR, "PCIe msi is null");
 
-    u32 status;
-    while ((status = bcm_readl (msi->intr_base + STATUS)) != 0) {
-        for (unsigned vector = 0; status && vector < BRCM_INT_PCI_MSI_NR; vector++) {
-            u32 mask = 1 << vector;
+//     u32 status;
+//     while ((status = bcm_readl (msi->intr_base + STATUS)) != 0) {
+//         for (unsigned vector = 0; status && vector < BRCM_INT_PCI_MSI_NR; vector++) {
+//             u32 mask = 1 << vector;
 
-            if (!(status & mask)) {
-                continue;
-            }
+//             if (!(status & mask)) {
+//                 continue;
+//             }
 
-            /* clear the interrupt */
-            bcm_writel (mask, msi->intr_base + CLR);
+//             /* clear the interrupt */
+//             bcm_writel (mask, msi->intr_base + CLR);
 
-            assert (msi->handler != 0);
-            (*msi->handler) (vector, msi->param);
+//             ASSERT (msi->handler != NULLPTR, "PCIe msi handler is null");
+//             (*msi->handler) (vector, msi->param);
 
-            status &= ~mask;
-        }
-    }
+//             status &= ~mask;
+//         }
+//     }
 
-    bcm_writel (1, msi->base + PCIE_MISC_EOI_CTRL);
+//     bcm_writel (1, msi->base + PCIE_MISC_EOI_CTRL);
+// }
+
+static void usleep_range (unsigned min, unsigned max) {
+    wait_us (min);
 }
 
-void CBcmPCIeHostBridge::usleep_range (unsigned min, unsigned max) {
-    CTimer::SimpleusDelay (min);
+static void msleep (unsigned ms) {
+    wait_ms (ms);
 }
 
-void CBcmPCIeHostBridge::msleep (unsigned ms) {
-    CTimer::SimpleMsDelay (ms);
-}
-
-int CBcmPCIeHostBridge::ilog2 (u64 v) {
+static int ilog2 (u64 v) {
     int l = 0;
     while (((u64)1 << l) < v)
         l++;

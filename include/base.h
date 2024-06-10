@@ -136,7 +136,7 @@ void assertion_failed (char const* fname, unsigned int line_num, char* fmt, ...)
 #define STATIC_ASSERT(expr) _Static_assert(expr)
 #define ASSERT(expr, ...)                                       \
     do {                                                        \
-        if (!expr) {                                            \
+        if (!(expr)) {                                          \
             assertion_failed (__FILE__, __LINE__, __VA_ARGS__); \
         }                                                       \
     } while (0)
@@ -173,6 +173,8 @@ extern u32 __kernel_end;
 // #define KERNEL_MEM_SIZE             (KERNEL_END - KERNEL_START)
 
 #define NULLPTR                   ((void*)0)
+#define REG_PTR8(reg_addr)        *((u8 volatile*)reg_addr)
+#define REG_PTR16(reg_addr)       *((u16 volatile*)reg_addr)
 #define REG_PTR32(reg_addr)       *((u32 volatile*)reg_addr)
 #define REG_PTR64(reg_addr)       *((u64 volatile*)reg_addr)
 
@@ -203,9 +205,12 @@ extern u32 __kernel_end;
  */
 #define ARM_TO_VPU_BUS_ADDR(addr) (VPU_BUS_TO_ARM_ADDR (addr) | 0xC0000000)
 
-
+void write8 (uintptr_t addr, u16 val);
+void write16 (uintptr_t addr, u16 val);
 void write32 (uintptr_t addr, u32 val);
 void write64 (uintptr_t addr, u64 val);
+u8 read8 (uintptr_t addr);
+u16 read16 (uintptr_t addr);
 u32 read32 (uintptr_t addr);
 u64 get_arm_core_id (void);
 u64 get_arm_exception_lvl (void);

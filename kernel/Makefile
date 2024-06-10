@@ -100,6 +100,7 @@ BUILD_DIR = ../build/kernel
 OUTDIR = ../out
 SRC_DIR = ""
 SRC_DIR += peripherals
+SRC_DIR += usb
 
 .PHONY: all
 all: kernel.img

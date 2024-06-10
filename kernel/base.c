@@ -213,12 +213,28 @@ void tfp_sprintf (char* s, char* fmt, ...) {
     va_end (va);
 }
 
+void write8 (uintptr_t addr, u16 val) {
+    REG_PTR8 (addr) = val;
+}
+
+void write16 (uintptr_t addr, u16 val) {
+    REG_PTR16 (addr) = val;
+}
+
 void write32 (uintptr_t addr, u32 val) {
     REG_PTR32 (addr) = val;
 }
 
 void write64 (uintptr_t addr, u64 val) {
     REG_PTR64 (addr) = val;
+}
+
+u8 read8 (uintptr_t addr) {
+    return REG_PTR8 (addr);
+}
+
+u16 read16 (uintptr_t addr) {
+    return REG_PTR16 (addr);
 }
 
 u32 read32 (uintptr_t addr) {

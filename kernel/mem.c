@@ -489,7 +489,10 @@ static void* translation_tbl_init_ (void) {
         /*
          * Leave entries greater than 4GB as invalid entries
          */
-        if (addr > (4UL * 0x40000000UL)) {
+        u64 pcie_start       = 0x600000000UL;
+        u64 pcie_end         = 0x7FFFFFFFFUL;
+        bool isin_pcie_range = addr >= pcie_start && addr <= pcie_end;
+        if (addr > (4UL * 0x40000000UL) && isin_pcie_range == false) {
             continue;
         }
 

@@ -44,8 +44,8 @@
  * Tag format:
  *  cmd_buffer[i] = size of the entire buffer
  *  cmd_buffer[i+1] = 4 byte tag id
- *  cmd_buffer[i+2] = request length (4 bytes, 8 bytes....)
- *  cmd_buffer[i+3] = response length (4, 8 bytes....)
+ *  cmd_buffer[i+2] = request length  (4 bytes, 8 bytes....)
+ *  cmd_buffer[i+3] = response length (4 bytes, 8 bytes....)
  *  cmd_buffer[i+4] = 1st 4 bytes of request data
  *  cmd_buffer[i+n] = next 4 bytes of request data.....
  *  cmd_buffer[i+n+1] = 4 byte ending tag

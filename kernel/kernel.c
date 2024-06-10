@@ -8,7 +8,7 @@
 #include "peripherals/uart.h"
 #include "screen.h"
 #include "sync.h"
-#include "usb.h"
+#include "usb/usb3.h"
 
 const char* entry_error_messages[] = {
     "SYNC_INVALID_EL1t",   "IRQ_INVALID_EL1t",
@@ -40,8 +40,8 @@ void kernel_main (void) {
     cache_invalidate ();
     mem_init (NULLPTR);
 
-    hci_device_t host;
-    hci_init (&host);
+    xhci_device_t* device = xhci_device_create ();
+    bool status           = xhci_device_init (device);
 
     dma_init (NULLPTR);
     screen_init ();
