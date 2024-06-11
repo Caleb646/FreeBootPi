@@ -14,7 +14,8 @@
         "stdarg.h": "c",
         "vpu.h": "c",
         "time.h": "c",
-        "ranges": "c"
+        "ranges": "c",
+        "pcie_hostbridge.h": "c"
     },
     "editor.formatOnSave": true,
     "editor.defaultFormatter": "xaver.clang-format",

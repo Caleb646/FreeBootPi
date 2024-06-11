@@ -156,5 +156,7 @@ DEP_FILES = $(OBJ_FILES:%.o=%.d)
 kernel.img: linker.ld $(OBJ_FILES)
 	mkdir -p $(OUTDIR)
 	$(ARMGNU)-ld -Map $(OUTDIR)/kernel.map -T linker.ld -o $(BUILD_DIR)/kernel.elf $(OBJ_FILES)
+	$(ARMGNU)-objdump -d $(BUILD_DIR)/kernel.elf > $(OUTDIR)/kernel_prog.txt
+	$(ARMGNU)-objdump -x $(BUILD_DIR)/kernel.elf > $(OUTDIR)/kernel_sym.txt
 	$(ARMGNU)-objcopy $(BUILD_DIR)/kernel.elf -O binary $(BUILD_DIR)/kernel.img
 	cp $(BUILD_DIR)/kernel.img $(OUTDIR)/kernel.img

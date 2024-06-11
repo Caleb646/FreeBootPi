@@ -1,28 +1,50 @@
 #include "usb/usb3.h"
-
-
+#include "mem.h"
 #include "peripherals/vpu.h"
 
 #define MEM_PCIE_RANGE_START_VIRTUAL MEM_PCIE_RANGE_START
 #define MEM_PCIE_RANGE_END_VIRTUAL \
     (MEM_PCIE_RANGE_START_VIRTUAL + MEM_PCIE_RANGE_SIZE - 1UL)
-#define ARM_XHCI0_BASE      MEM_PCIE_RANGE_START_VIRTUAL
-#define ARM_XHCI0_END       (ARM_XHCI0_BASE + 0x0FFF)
+#define ARM_XHCI0_BASE             MEM_PCIE_RANGE_START_VIRTUAL
+#define ARM_XHCI0_END              (ARM_XHCI0_BASE + 0x0FFF)
 
-#define XHCI_PCI_CLASS_CODE 0xC0330
-#define XHCI_PCIE_SLOT      0
-#define XHCI_PCIE_FUNC      0
+#define XHCI_TO_DMA(ptr, dma_addr) ((uintptr_t)ptr | dma_addr)
 
-static xhci_device_t xhci_device_ = { 0 };
-static mmio_space_t mmio_space_   = { 0 };
+#define XHCI_OP_USBCMD_REG         0x00
+#define XHCI_OP_CRCR_REG           0x18
+#define XHCI_OP_DCBAAP_REG         0x30
+#define XHCI_OP_CONFIG_REG         0x38
+
+#define XHCI_RT_IR_IMAN_REG        0x00
+#define XHCI_RT_IR_IMOD_REG        0x04
+#define XHCI_RT_IR_ERSTSZ_REG      0x08
+#define XHCI_RT_IR_ERSTBA_LO_REG   0x10
+#define XHCI_RT_IR_ERDP_LO_REG     0x18
+
+static xhci_device_t xhci_device_              = { 0 };
+static mmio_space_t mmio_space_                = { 0 };
+static xhci_slot_manager_t slot_manager_       = { 0 };
+static xhci_event_manager_t event_manager_     = { 0 };
+static xhci_command_manager_t command_manager_ = { 0 };
+static xhci_roothub_t roothub_                 = { 0 };
+#define BLOCK_SIZE      2048
+#define BLOCK_ALIGN     64
+#define BLOCK_BOUNDARY  0x10000
+#define DMA_BUFFER_SIZE XHCI_PAGE_SIZE * 10
+static u8* pdma_current_ = NULLPTR;
+static uintptr_t dma_start_, dma_end_;
 
 static mmio_space_t* mmio_space_create (void);
 static void mmio_space_init (mmio_space_t* mmio, uintptr_t base_addr);
 static u32 cap_read32_raw (mmio_space_t* mmio, u32 addr);
 static u32 cap_read32 (mmio_space_t* mmio, u32 offset);
 static void op_write32 (mmio_space_t* mmio, u32 offset, u32 value);
+static void op_write64 (mmio_space_t* mmio, u32 offset, u64 value);
 static u32 op_read32 (mmio_space_t* mmio, u32 offset);
 static bool op_wait32 (mmio_space_t* mmio, u32 offset, u32 mask, u32 expected_value, s32 us_timeout);
+static void rt_write64 (mmio_space_t* mmio, u32 interrupter, u32 offset, u64 value);
+static void rt_write32 (mmio_space_t* mmio, u32 interrupter, u32 offset, u32 value);
+static u32 rt_read32 (mmio_space_t* mmio, u32 interrupter, u32 offset);
 
 static u32 cap_read32_raw (mmio_space_t* mmio, u32 offset) {
     return read32 (mmio->base + offset);
@@ -37,6 +59,11 @@ static u32 cap_read32 (mmio_space_t* mmio, u32 offset) {
 
 static void op_write32 (mmio_space_t* mmio, u32 offset, u32 value) {
     write32 (mmio->op_base + offset, value);
+}
+
+static void op_write64 (mmio_space_t* mmio, u32 offset, u64 value) {
+    op_write32 (mmio, offset, (u32)value);
+    op_write32 (mmio, offset + 4, (u32)(value >> 32));
 }
 
 static bool op_wait32 (mmio_space_t* mmio, u32 offset, u32 mask, u32 expected_value, s32 us_timeout) {
@@ -74,10 +101,45 @@ static void mmio_space_init (mmio_space_t* mmio, uintptr_t base_addr) {
     base_addr + ((cap_read32_raw (mmio, 0x10) & (0xFFFF << 16)) >> 16 << 2);
 }
 
-static bool hardware_reset (xhci_device_t* host);
+static void* xhci_dma_allocate (size_t sz, size_t align, size_t boundary);
+static bool xhci_hardware_reset (xhci_device_t* host);
+static void xhci_slot_manager_init (xhci_device_t* host, xhci_slot_manager_t* man);
+static void
+xhci_slot_assign_scratch_pad_buffer_array (xhci_device_t* host, xhci_slot_manager_t* man, u64* scratch_pad);
+static void xhci_event_manager_init (xhci_device_t* host, xhci_event_manager_t* man);
+static void xhci_command_manager_init (xhci_device_t* host, xhci_command_manager_t* man);
+static void
+xhci_ring_init (xhci_device_t* host, xhci_ring_t* ring, xhci_ring_type_t type, size_t size);
+static xhci_trb_t* xhci_ring_get_first_trb (xhci_device_t* host, xhci_ring_t* ring);
+static xhci_roothub_t*
+xhci_roothub_create (xhci_device_t* host, xhci_roothub_t* roothub, u32 max_nports);
+static bool xhci_roothub_init (xhci_device_t* host, xhci_roothub_t* roothub);
+static xhci_rootport_t*
+xhci_rootport_create (xhci_device_t* host, xhci_rootport_t* rootport, u32 port_id);
+static bool xhci_rootport_init (xhci_device_t* host, xhci_rootport_t* rootport);
 
+static void* xhci_dma_allocate (size_t sz, size_t align, size_t boundary) {
+    if (pdma_current_ == NULLPTR) {
+        pdma_current_ = calign_allocate (eHEAP_ID_LOW, DMA_BUFFER_SIZE, XHCI_PAGE_SIZE);
+        ASSERT (pdma_current_ != NULLPTR, "XHCI failed to allocate dma buffer");
+        dma_start_ = (uintptr_t)pdma_current_;
+        dma_end_   = (uintptr_t)(pdma_current_ + DMA_BUFFER_SIZE);
+    }
 
-static bool hardware_reset (xhci_device_t* host) {
+    u32 const def_size = 1024;
+    if (dma_end_ - (uintptr_t)pdma_current_ < def_size) {
+        return NULLPTR;
+    }
+    if (sz > def_size) {
+        ASSERT (false, "XHCI default size is smaller than sz");
+    }
+    void* ret = pdma_current_;
+    memset (ret, 0, def_size);
+    pdma_current_ += def_size;
+    return ret;
+}
+
+static bool xhci_hardware_reset (xhci_device_t* host) {
     bool status = op_wait32 (host->pmmio, 0x04, (1 << 11), 0, 100000);
     if (status == false) {
         return false;
@@ -94,6 +156,84 @@ static bool hardware_reset (xhci_device_t* host) {
     return true;
 }
 
+static void xhci_slot_manager_init (xhci_device_t* host, xhci_slot_manager_t* man) {
+    op_write32 (
+    host->pmmio, XHCI_OP_CONFIG_REG,
+    (op_read32 (host->pmmio, XHCI_OP_CONFIG_REG) & ~0xFF) | XHCI_CONFIG_MAX_SLOTS);
+
+    man->pdcbaa =
+    (u64*)xhci_dma_allocate ((XHCI_CONFIG_MAX_PORTS + 1) * sizeof (u64), BLOCK_ALIGN, BLOCK_BOUNDARY);
+    ASSERT (man->pdcbaa != NULLPTR, "XHCI failed to allocate buffer for slot manager");
+
+    op_write64 (
+    host->pmmio, XHCI_OP_DCBAAP_REG, XHCI_TO_DMA (man->pdcbaa, host->ppcie->s_nDMAAddress));
+}
+
+static void
+xhci_slot_assign_scratch_pad_buffer_array (xhci_device_t* host, xhci_slot_manager_t* man, u64* scratch_pad) {
+    ASSERT (scratch_pad != NULLPTR, "XHCI invalid scratch pad buffer");
+    man->pdcbaa[0] = scratch_pad;
+}
+
+static void xhci_event_manager_init (xhci_device_t* host, xhci_event_manager_t* man) {
+    xhci_ring_init (host, &man->event_ring, eXHCI_RING_TYPE_EVENT, 256);
+
+    man->perst = xhci_dma_allocate (sizeof (xhci_erst_entry_t), BLOCK_ALIGN, BLOCK_BOUNDARY);
+    ASSERT (man->perst == NULLPTR, "XHCI failed to init event manager");
+
+    xhci_trb_t* first_entry = xhci_ring_get_first_trb (host, &man->event_ring);
+    man->perst->ring_segment_base = XHCI_TO_DMA (first_entry, host->ppcie->s_nDMAAddress);
+    man->perst->ring_segment_size = man->event_ring.trb_count;
+    man->perst->reserved          = 0;
+
+    rt_write32 (host->pmmio, 0, XHCI_RT_IR_ERSTSZ_REG, 1);
+    rt_write64 (
+    host->pmmio, 0, XHCI_RT_IR_ERSTBA_LO_REG,
+    XHCI_TO_DMA (man->perst, host->ppcie->s_nDMAAddress));
+    rt_write64 (
+    host->pmmio, 0, XHCI_RT_IR_ERDP_LO_REG,
+    XHCI_TO_DMA (first_entry, host->ppcie->s_nDMAAddress));
+    // defines maximum interrupt rate
+    rt_write32 (host->pmmio, 0, XHCI_RT_IR_IMOD_REG, 500);
+    // RT_IR_IMAN_IE
+    rt_write32 (
+    host->pmmio, 0, XHCI_RT_IR_IMAN_REG,
+    rt_read32 (host->pmmio, 0, XHCI_RT_IR_IMAN_REG) | (1 << 1));
+}
+
+static void xhci_command_manager_init (xhci_device_t* host, xhci_command_manager_t* man) {
+    xhci_ring_init (host, &man->cmd_ring, eXHCI_RING_TYPE_COMMAND, 64);
+    man->is_cmd_completed = true;
+    man->pcur_cmd_trb     = NULLPTR;
+
+    xhci_trb_t* pfirst_trb = xhci_ring_get_first_trb (host, &man->cmd_ring);
+    op_write64 (
+    host->pmmio, XHCI_OP_CRCR_REG,
+    XHCI_TO_DMA (pfirst_trb, host->ppcie->s_nDMAAddress) | man->cmd_ring.cycle_state);
+}
+
+static xhci_roothub_t*
+xhci_roothub_create (xhci_device_t* host, xhci_roothub_t* roothub, u32 max_nports) {
+    roothub->nports = max_nports;
+    for (u32 port_idx = 0; port_idx < max_nports; ++port_idx) {
+        xhci_rootport_create (host, &roothub->rootports[port_idx], port_idx + 1);
+    }
+}
+
+static bool xhci_roothub_init (xhci_device_t* host, xhci_roothub_t* roothub) {
+}
+
+static xhci_rootport_t*
+xhci_rootport_create (xhci_device_t* host, xhci_rootport_t* rootport, u32 port_id) {
+    memset (rootport, 0, sizeof (xhci_rootport_t));
+    ASSERT (port_id <= 1 && port_id >= XHCI_CONFIG_MAX_PORTS, "XHCI invalid port passed to rootport");
+    rootport->port_idx = port_id;
+    return rootport;
+}
+
+static bool xhci_rootport_init (xhci_device_t* host, xhci_rootport_t* rootport) {
+}
+
 
 xhci_device_t* xhci_device_create (void) {
     memset (&xhci_device_, 0, sizeof (xhci_device_t));
@@ -103,6 +243,12 @@ xhci_device_t* xhci_device_create (void) {
 bool xhci_device_init (xhci_device_t* host) {
     host->ppcie = pcie_hostbridge_create ();
     host->pmmio = mmio_space_create ();
+    memset (&slot_manager_, 0, sizeof (xhci_slot_manager_t));
+    memset (&event_manager_, 0, sizeof (xhci_event_manager_t));
+    memset (&command_manager_, 0, sizeof (xhci_command_manager_t));
+    host->pslot_man    = &slot_manager_;
+    host->pevent_man   = &event_manager_;
+    host->pcommand_man = &command_manager_;
 
     if (pcie_hostbridge_init (host->ppcie) == false) {
         LOG_ERROR ("USB failed to init pcie hostbridge");
@@ -134,10 +280,36 @@ bool xhci_device_init (xhci_device_t* host) {
     LOG_INFO ("8");
     LOG_INFO ("USB # of ports %u # of scratch pads %u", nmax_ports, nmax_scratch_pads);
 
-    if (hardware_reset (host) == false) {
+    if (xhci_hardware_reset (host) == false) {
         LOG_ERROR ("USB failed to reset hardware");
         return false;
     }
+
+    ASSERT (op_read32 (host->pmmio, 0x08) & (1 << 0), "XHCI wrong page size");
+    ASSERT (nmax_scratch_pads > 0, "XHCI invalid number of scratch pads");
+    host->pscratchpad_buffers =
+    xhci_dma_allocate (XHCI_PAGE_SIZE * nmax_scratch_pads, XHCI_PAGE_SIZE, BLOCK_BOUNDARY);
+    host->pscratchpad_buffer_array =
+    (u64*)xhci_dma_allocate (sizeof (64) * nmax_scratch_pads, BLOCK_ALIGN, BLOCK_BOUNDARY);
+
+    ASSERT (host->pscratchpad_buffers != NULLPTR, "XHCI failed to allocate scratch pads");
+    ASSERT (host->pscratchpad_buffer_array != NULLPTR, "XHCI failed to allocate scratch pads");
+
+    for (u32 i = 0; i < nmax_scratch_pads; ++i) {
+        host->pscratchpad_buffer_array[i] =
+        XHCI_TO_DMA (host->pscratchpad_buffers, host->ppcie->s_nDMAAddress) +
+        XHCI_PAGE_SIZE * i;
+    }
+    xhci_slot_assign_scratch_pad_buffer_array (host, host->pslot_man, host->pscratchpad_buffer_array);
+    host->proothub = xhci_roothub_create (host, &roothub_, nmax_ports);
+
+    // TODO enable interrupts
+    // assert (m_pInterruptSystem != 0);
+    // m_pInterruptSystem->ConnectIRQ (ARM_IRQ_XHCI, InterruptStub, this);
+    // m_bInterruptConnected = TRUE;
+
+    op_write32 (host->pmmio, XHCI_OP_USBCMD_REG, op_read32 (host->pmmio, XHCI_OP_USBCMD_REG) | (1 << 2));
+    op_write32 (host->pmmio, XHCI_OP_USBCMD_REG, op_read32 (host->pmmio, XHCI_OP_USBCMD_REG) | (1 << 0));
 
     return true;
 }
