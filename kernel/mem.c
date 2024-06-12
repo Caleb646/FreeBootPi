@@ -1,42 +1,70 @@
 #include "mem.h"
-#ifdef ON_HOST_TESTING
-extern u8 low_heap[TEST_HEAP_SIZE];
-extern u8 mid_heap[TEST_HEAP_SIZE];
-extern u8 high_heap[TEST_HEAP_SIZE];
-#else
+// #ifdef ON_HOST_TESTING
+// extern u8 low_heap[TEST_HEAP_SIZE];
+// extern u8 mid_heap[TEST_HEAP_SIZE];
+// extern u8 high_heap[TEST_HEAP_SIZE];
+// #else
 #include "arm/sysregs.h"
 #include "peripherals/uart.h"
 #include "sync.h"
-#endif
+// #endif
 
-static heap_t heaps[MEM_NUM_HEAP_SECTIONS];
+static heap_t heaps_[MEM_NUM_HEAP_SECTIONS];
 
-static s32 find_heap (void* ptr) {
+static s32 find_heap_id_ (void const* ptr);
+static bool heap_is_valid_ (heap_t const* heap);
+static bool heaps_are_valid_ (heap_t const (*pheaps)[MEM_NUM_HEAP_SECTIONS]);
+GCC_NODISCARD static void* align_allocate_ (heap_id_t heap_id, size_t sz, size_t alignment);
+
+static s32 find_heap_id_ (void const* ptr) {
     uintptr_t ptr_addr = (uintptr_t)ptr;
     for (u32 i = 0; i < MEM_NUM_HEAP_SECTIONS; ++i) {
-        heap_t heap = heaps[i];
-        if (ptr_addr >= (uintptr_t)heap.start && ptr_addr <= (uintptr_t)heap.end) {
+        heap_t const* pheap = &heaps_[i];
+        if (ptr_addr >= pheap->start && ptr_addr <= pheap->end) {
             return i;
         }
     }
     return -1;
 }
 
-GCC_NODISCARD void* page_allocate (void) {
-    heap_t* heap = &heaps[eHEAP_ID_MID];
-    void* alloc  = heap->cur_pos;
-    heap->cur_pos += PAGE_SIZE;
-    return alloc;
+static bool heap_is_valid_ (heap_t const* pheap) {
+    if (pheap == NULLPTR) {
+        return false;
+    }
+    return pheap->end > pheap->start;
 }
 
-GCC_NODISCARD static void* align_allocate_ (heap_t* heap, size_t sz, size_t alignment) {
+static bool heaps_are_valid_ (heap_t const (*pheaps)[MEM_NUM_HEAP_SECTIONS]) {
+    for (u32 i = 0; i < MEM_NUM_HEAP_SECTIONS; ++i) {
+        if (heap_is_valid_ (pheaps[i]) == false) {
+            return false;
+        }
+        uintptr_t is = pheaps[i]->start;
+        uintptr_t ie = pheaps[i]->end;
+        for (u32 j = i; j < MEM_NUM_HEAP_SECTIONS; ++j) {
+            uintptr_t js      = pheaps[j]->start;
+            uintptr_t je      = pheaps[j]->end;
+            bool does_overlap = is >= js && is <= je;
+            does_overlap |= ie >= js && ie <= je;
+            does_overlap |= js >= is && js <= ie;
+            does_overlap |= je >= is && je <= ie;
+            if (does_overlap) {
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
+GCC_NODISCARD static void* align_allocate_ (heap_id_t heap_id, size_t sz, size_t alignment) {
+    ASSERT (heap_id >= 0 && heap_id < MEM_NUM_HEAP_SECTIONS, "");
     // Interrupt but NOT thread safe
-    s32 status = enter_critical (IRQ_DISABLED_FIQ_DISABLED_TARGET);
-    if (status == -1) {
+    if (enter_critical (eCRITICAL_SECTION_TARGET_DISABLE_IRQ_FIQ) == false) {
         return NULLPTR;
     }
+    heap_t* pheap = &heaps_[heap_id];
     node_t* prev  = NULLPTR;
-    node_t** cur  = &(heap->free_list_head);
+    node_t** cur  = &(pheap->pfree_list_head);
     node_t* alloc = NULLPTR;
     while ((*cur) != NULLPTR) {
         /*
@@ -44,8 +72,8 @@ GCC_NODISCARD static void* align_allocate_ (heap_t* heap, size_t sz, size_t alig
          * Should search for smallest allocation in free list that meets the requirements.
          */
         if ((*cur)->sz >= sz) {
-            if ((*cur)->next != NULLPTR && prev != NULLPTR) {
-                prev->next = (*cur)->next;
+            if ((*cur)->pnext != NULLPTR && prev != NULLPTR) {
+                prev->pnext = (*cur)->pnext;
             }
             alloc     = (node_t*)(*cur);
             alloc->sz = (*cur)->sz;
@@ -53,9 +81,9 @@ GCC_NODISCARD static void* align_allocate_ (heap_t* heap, size_t sz, size_t alig
             break;
         }
         prev   = (*cur);
-        (*cur) = (*cur)->next;
+        (*cur) = (*cur)->pnext;
     }
-    size_t heap_mem_left = (uintptr_t)heap->end - (uintptr_t)heap->cur_pos;
+    size_t heap_mem_left = pheap->end - (uintptr_t)pheap->pcur_pos;
     if (alloc == NULLPTR && heap_mem_left > (sz + sizeof (size_t))) {
         /* Aligning address using modulo */
         // u32 alignment = ((uintptr_t)(heap_current + sizeof(size_t))) % MALLOC_ADDR_ALIGNMENT;
@@ -69,16 +97,23 @@ GCC_NODISCARD static void* align_allocate_ (heap_t* heap, size_t sz, size_t alig
          * anded with the current memory address + (alignment - 1) +
          * sizeof(size_t) returns the aligned address for alloc->next.
          */
-        heap->cur_pos =
-        (u8*)(((uintptr_t)heap->cur_pos + (alignment - 1) + sizeof (size_t)) & (~(alignment - 1)));
-        alloc     = (node_t*)((uintptr_t)heap->cur_pos - sizeof (size_t));
+        pheap->pcur_pos =
+        (u8*)(((uintptr_t)pheap->pcur_pos + (alignment - 1) + sizeof (size_t)) & (~(alignment - 1)));
+        alloc     = (node_t*)((uintptr_t)pheap->pcur_pos - sizeof (size_t));
         alloc->sz = sz;
-        heap->cur_pos += sz;
+        pheap->pcur_pos += sz;
     }
 
-    void* ret = (void*)(&(alloc->next));
-    status    = leave_critical ();
+    void* ret = (void*)(&(alloc->pnext));
+    leave_critical ();
     return ret;
+}
+
+GCC_NODISCARD void* page_allocate (void) {
+    heap_t* pheap = &heaps_[eHEAP_ID_MID];
+    void* alloc   = pheap->pcur_pos;
+    pheap->pcur_pos += PAGE_SIZE;
+    return alloc;
 }
 
 /*
@@ -88,14 +123,11 @@ GCC_NODISCARD static void* align_allocate_ (heap_t* heap, size_t sz, size_t alig
  * boundary. Must be a power of 2.
  */
 GCC_NODISCARD void* align_allocate (size_t sz, size_t alignment) {
-    return align_allocate_ (&(heaps[eHEAP_ID_DEFAULT]), sz, alignment);
+    return align_allocate_ (eHEAP_ID_DEFAULT, sz, alignment);
 }
 
 GCC_NODISCARD void* callocate (heap_id_t heap_id, size_t sz) {
-    if (heap_id < MEM_NUM_HEAP_SECTIONS) {
-        return align_allocate_ (&(heaps[heap_id]), sz, MALLOC_ADDR_ALIGNMENT);
-    }
-    return NULLPTR;
+    return align_allocate_ (heap_id, sz, MALLOC_ADDR_ALIGNMENT);
 }
 
 /*
@@ -107,15 +139,14 @@ GCC_NODISCARD void* callocate (heap_id_t heap_id, size_t sz) {
  *   Must be a power of 2.
  */
 GCC_NODISCARD void* calign_allocate (heap_id_t heap_id, size_t sz, size_t alignment) {
-    if (heap_id < MEM_NUM_HEAP_SECTIONS) {
-        return align_allocate_ (&(heaps[heap_id]), sz, alignment);
-    }
-    return NULLPTR;
+    return align_allocate_ (heap_id, sz, alignment);
 }
 
 GCC_NODISCARD void* align_allocate_set (size_t sz, u8 value, size_t alignment) {
     void* ptr = align_allocate (sz, alignment);
-    memset (ptr, value, sz);
+    if (ptr != NULLPTR) {
+        memset (ptr, value, sz);
+    }
     return ptr;
 }
 
@@ -124,42 +155,36 @@ GCC_NODISCARD void* allocate (size_t sz) {
 }
 
 void delete (void* ptr) {
-    s32 status = enter_critical (IRQ_DISABLED_FIQ_DISABLED_TARGET);
-    if (status == -1) {
+    if (enter_critical (eCRITICAL_SECTION_TARGET_DISABLE_IRQ_FIQ) == false) {
         return;
     }
 
-    s32 heap_id = find_heap (ptr);
-    if (heap_id == -1) {
-        LOG_ERROR ("Failed to delete allocation because corresponding heap "
-                   "could not be found");
-        return;
-    }
-
-    heap_t* heap = &(heaps[heap_id]);
+    s32 heap_id = find_heap_id_ (ptr);
+    ASSERT (heap_id != -1, "");
+    heap_t* pheap = &(heaps_[heap_id]);
 
     node_t* node      = (node_t*)(((u8*)ptr) - sizeof (size_t));
     size_t alloc_size = node->sz;
-    if (heap->free_list_head == NULLPTR) {
-        heap->free_list_head       = (node_t*)node;
-        heap->free_list_head->sz   = alloc_size;
-        heap->free_list_head->next = NULLPTR;
+    if (pheap->pfree_list_head == NULLPTR) {
+        pheap->pfree_list_head        = (node_t*)node;
+        pheap->pfree_list_head->sz    = alloc_size;
+        pheap->pfree_list_head->pnext = NULLPTR;
         return;
     }
     /*
      * TODO: Should join near by free_list entries together
      */
-    node_t* cur = heap->free_list_head;
+    node_t* cur = pheap->pfree_list_head;
     while (cur != NULLPTR) {
-        if (cur->next == NULLPTR) {
-            cur->next       = (node_t*)ptr;
-            cur->next->sz   = alloc_size;
-            cur->next->next = NULLPTR;
+        if (cur->pnext == NULLPTR) {
+            cur->pnext        = (node_t*)ptr;
+            cur->pnext->sz    = alloc_size;
+            cur->pnext->pnext = NULLPTR;
             return;
         }
-        cur = cur->next;
+        cur = cur->pnext;
     }
-    status = leave_critical ();
+    leave_critical ();
 }
 
 
@@ -423,9 +448,7 @@ static void* create_translation_tbl_lvl3_ (uintptr_t addr) {
      * 1111 1111 1111 1111 1111 1111 1111 1111 0000 0000 0000 0000
      */
     ASSERT ((tbl != NULLPTR), "MMU Failed to allocate level 3 Page Table");
-    ASSERT (
-    !((((uintptr_t)tbl) & ~0xFFFFFFFF0000UL) > 0),
-    "MMU Level 3 Page table address is NOT aligned: [0x%X]", (uintptr_t)tbl);
+    ASSERT (ADDR_IS_ALIGNED (tbl, 16), "MMU Level 3 Page table address is NOT aligned: [0x%X]", (uintptr_t)tbl);
     ASSERT ((sizeof (page_desc_lvl3) * MMU_LEVEL3_ENTRIES == PAGE_SIZE), "MMU Level 3 Table is incorrect size");
 
     for (uintptr_t entry_idx = 0; entry_idx < MMU_LEVEL3_ENTRIES; ++entry_idx) {
@@ -441,9 +464,7 @@ static void* create_translation_tbl_lvl3_ (uintptr_t addr) {
         desc->af = 1;
         desc->ng = 0;
         desc->ta = 0;
-        if ((addr & ~0xFFFFFFFF0000UL) > 0) {
-            LOG_ERROR ("MMU Level 3 Page entry Physical address is NOT aligned: [0x%X]", addr);
-        }
+        ASSERT (ADDR_IS_ALIGNED (addr, 16), "");
         desc->phys_addr  = LEVEL3_PHYS_ADDR (addr);
         desc->dbm        = 0;
         desc->contiguous = 0;
@@ -473,33 +494,24 @@ static void* translation_tbl_init_ (void) {
     uintptr_t addr           = 0x0;
     tbl_desc_lvl2* table_ptr = page_allocate ();
     memset (table_ptr, 0, PAGE_SIZE);
-
-    if (table_ptr == NULLPTR) {
-        LOG_ERROR ("MMU Failed to allocate level 2 Table");
-    }
-
-    if ((((uintptr_t)table_ptr) & ~0xFFFFFFFF0000UL) > 0) {
-        LOG_ERROR ("MMU Level 2 Table address is NOT aligned: [0x%X]", (uintptr_t)table_ptr);
-        return NULLPTR;
-    }
-
+    ASSERT (table_ptr != NULLPTR, "");
+    ASSERT (ADDR_IS_ALIGNED (table_ptr, 16), "");
     // LOG_DEBUG ("MMU Level 2 Table Address [0x%X]", (uintptr_t)table_ptr);
     for (uintptr_t entry_idx = 0; entry_idx < MMU_LEVEL2_ENTRIES; ++entry_idx) {
         addr = entry_idx * MMU_LEVEL3_ENTRIES * PAGE_SIZE;
         /*
          * Leave entries greater than 4GB as invalid entries
          */
-        u64 pcie_start       = 0x600000000UL;
-        u64 pcie_end         = 0x7FFFFFFFFUL;
-        bool isin_pcie_range = addr >= pcie_start && addr <= pcie_end;
+        // u64 pcie_start       = 0x600000000UL;
+        // u64 pcie_end         = 0x7FFFFFFFFUL;
+        bool isin_pcie_range = addr >= MEM_PCIE_RANGE_START_VIRTUAL &&
+                               addr <= MEM_PCIE_RANGE_END_VIRTUAL;
         if (addr > (4UL * 0x40000000UL) && isin_pcie_range == false) {
             continue;
         }
 
         void* subtbl = create_translation_tbl_lvl3_ (addr);
-        if (subtbl == NULLPTR) {
-            LOG_ERROR ("MMU Failed to create Lvl 3 Table");
-        }
+        ASSERT (subtbl == NULLPTR, "");
 
         tbl_desc_lvl2* desc = &(table_ptr[entry_idx]);
         desc->entry_type    = 3; // table descriptor
@@ -571,38 +583,41 @@ static void mmu_init (void) {
     LOG_INFO ("MMU Setup Complete");
 }
 
-s32 mem_init (heap_t* hp) {
-    if (hp == NULLPTR) {
+bool mem_init (heap_t (*config)[MEM_NUM_HEAP_SECTIONS]) {
+    if (config == NULLPTR) {
         //#ifndef ON_HOST_TESTING
-        heap_t low           = { .start   = (u8*)ARM_DRAM_LOW_MEM_START,
-                                 .end     = (u8*)ARM_DRAM_LOW_MEM_END,
-                                 .cur_pos = (u8*)ARM_DRAM_LOW_MEM_START,
-                                 .size    = ARM_DRAM_LOW_MEM_END - ARM_DRAM_LOW_MEM_START,
-                                 .free_list_head = NULLPTR };
-        heap_t mid           = { .start   = (u8*)ARM_DRAM_MID_MEM_START,
-                                 .end     = (u8*)ARM_DRAM_MID_MEM_END,
-                                 .cur_pos = (u8*)ARM_DRAM_MID_MEM_START,
-                                 .size    = ARM_DRAM_MID_MEM_END - ARM_DRAM_MID_MEM_START,
-                                 .free_list_head = NULLPTR };
-        heap_t high          = { .start   = (u8*)ARM_DRAM_HIGH_MEM_START,
-                                 .end     = (u8*)ARM_DRAM_HIGH_MEM_END,
-                                 .cur_pos = (u8*)ARM_DRAM_HIGH_MEM_START,
-                                 .size = ARM_DRAM_HIGH_MEM_END - ARM_DRAM_HIGH_MEM_START,
-                                 .free_list_head = NULLPTR };
-        heaps[eHEAP_ID_LOW]  = low;
-        heaps[eHEAP_ID_MID]  = mid;
-        heaps[eHEAP_ID_HIGH] = high;
+        heap_t low = { .start    = (uintptr_t)ARM_DRAM_LOW_MEM_START,
+                       .end      = (uintptr_t)ARM_DRAM_LOW_MEM_END,
+                       .pcur_pos = (u8*)ARM_DRAM_LOW_MEM_START,
+                       .size = ARM_DRAM_LOW_MEM_END - ARM_DRAM_LOW_MEM_START,
+                       .pfree_list_head = NULLPTR };
+        heap_t mid = { .start    = (uintptr_t)ARM_DRAM_MID_MEM_START,
+                       .end      = (uintptr_t)ARM_DRAM_MID_MEM_END,
+                       .pcur_pos = (u8*)ARM_DRAM_MID_MEM_START,
+                       .size = ARM_DRAM_MID_MEM_END - ARM_DRAM_MID_MEM_START,
+                       .pfree_list_head = NULLPTR };
+        // heap_t high           = { .start    = (uintptr_t)ARM_DRAM_HIGH_MEM_START,
+        //                           .end      = (uintptr_t)ARM_DRAM_HIGH_MEM_END,
+        //                           .pcur_pos = (u8*)ARM_DRAM_HIGH_MEM_START,
+        //                           .size = ARM_DRAM_HIGH_MEM_END - ARM_DRAM_HIGH_MEM_START,
+        //                           .pfree_list_head = NULLPTR };
+        heaps_[eHEAP_ID_LOW] = low;
+        heaps_[eHEAP_ID_MID] = mid;
+        // heaps_[eHEAP_ID_HIGH] = high;
         LOG_INFO (
-        "Low Heap Start [0x%X] End [0x%X]", (uintptr_t)heaps[eHEAP_ID_LOW].start,
-        (uintptr_t)heaps[eHEAP_ID_LOW].end);
+        "Low Heap Start [0x%X] End [0x%X]", heaps_[eHEAP_ID_LOW].start,
+        heaps_[eHEAP_ID_LOW].end);
         LOG_INFO (
-        "Mid Heap Start [0x%X] End [0x%X]", (uintptr_t)heaps[eHEAP_ID_MID].start,
-        (uintptr_t)heaps[eHEAP_ID_MID].end);
-        LOG_INFO (
-        "High Heap Start [0x%X] End [0x%X]", (uintptr_t)heaps[eHEAP_ID_HIGH].start,
-        (uintptr_t)heaps[eHEAP_ID_HIGH].end);
+        "Mid Heap Start [0x%X] End [0x%X]", heaps_[eHEAP_ID_MID].start,
+        heaps_[eHEAP_ID_MID].end);
+        // LOG_INFO (
+        // "High Heap Start [0x%X] End [0x%X]", heaps_[eHEAP_ID_HIGH].start,
+        // heaps_[eHEAP_ID_HIGH].end);
         //#endif
     }
+
+    ASSERT (heaps_are_valid_ (&heaps_), "");
+
     // Invalidate instruction cache
     asm volatile("ic IALLUIS");
     // Invalidate TLB entries
@@ -611,5 +626,5 @@ s32 mem_init (heap_t* hp) {
     ISB ();
 
     mmu_init ();
-    return 1;
+    return true;
 }

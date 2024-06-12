@@ -23,7 +23,7 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 #include "usb/pcie_hostbridge.h"
-#include "peripherals/timer.h"
+#include "timer.h"
 
 #define PCIE_GEN                                 2
 
@@ -190,8 +190,8 @@
 #define bcm_writew(d, a)                                               write16 (a, d)
 
 /* These macros extract/insert fields to host controller's register set. */
-#define RD_FLD(m_base, reg, field) \
-    rd_fld (m_base + reg, reg##_##field##_MASK, reg##_##field##_SHIFT)
+/* #define RD_FLD(m_base, reg, field) \
+//     rd_fld (m_base + reg, reg##_##field##_MASK, reg##_##field##_SHIFT) */
 #define WR_FLD(m_base, reg, field, val) \
     wr_fld (m_base + reg, reg##_##field##_MASK, reg##_##field##_SHIFT, val)
 #define WR_FLD_RB(m_base, reg, field, val) \
@@ -228,7 +228,7 @@ static void
 pcie_set_outbound_win (pcie_hostbridge_t* host, unsigned win, u64 cpu_addr, u64 pcie_addr, u64 size);
 static uintptr_t
 pcie_map_conf (pcie_hostbridge_t* host, unsigned busnr, unsigned devfn, int where);
-static uintptr_t find_pci_capability (uintptr_t nPCIConfig, u8 uchCapID);
+// static uintptr_t find_pci_capability (uintptr_t nPCIConfig, u8 uchCapID);
 static void pcie_bridge_sw_init_set (pcie_hostbridge_t* host, unsigned val);
 static void pcie_perst_set (pcie_hostbridge_t* host, unsigned int val);
 static bool pcie_link_up (pcie_hostbridge_t* host);
@@ -239,7 +239,7 @@ static int cfg_index (int busnr, int devfn, int reg);
 static void set_gen (uintptr_t base, int gen);
 static const char* link_speed_to_str (int s);
 static int encode_ibar_size (u64 size);
-static u32 rd_fld (uintptr_t p, u32 mask, int shift);
+// static u32 rd_fld (uintptr_t p, u32 mask, int shift);
 static void wr_fld (uintptr_t p, u32 mask, int shift, u32 val);
 static void wr_fld_rb (uintptr_t p, u32 mask, int shift, u32 val);
 // static void InterruptHandler (void* pParam);
@@ -617,30 +617,30 @@ pcie_map_conf (pcie_hostbridge_t* host, unsigned busnr, unsigned devfn, int wher
 }
 
 
-static uintptr_t find_pci_capability (uintptr_t nPCIConfig, u8 uchCapID) {
-    ASSERT (nPCIConfig != 0, "PCIe config is 0");
-    ASSERT (uchCapID > 0, "PCIe cap id is 0");
+// static uintptr_t find_pci_capability (uintptr_t nPCIConfig, u8 uchCapID) {
+//     ASSERT (nPCIConfig != 0, "PCIe config is 0");
+//     ASSERT (uchCapID > 0, "PCIe cap id is 0");
 
-#define PCI_STATUS          0x06 /* 16 bits */
-#define PCI_STATUS_CAP_LIST 0x10 /* Support Capability List */
-#define PCI_CAPABILITY_LIST 0x34 /* Offset of first capability list entry */
-#define PCI_CAP_LIST_NEXT   1    /* Next capability in the list */
+// #define PCI_STATUS          0x06 /* 16 bits */
+// #define PCI_STATUS_CAP_LIST 0x10 /* Support Capability List */
+// #define PCI_CAPABILITY_LIST 0x34 /* Offset of first capability list entry */
+// #define PCI_CAP_LIST_NEXT   1    /* Next capability in the list */
 
-    if (!(read16 (nPCIConfig + PCI_STATUS) & PCI_STATUS_CAP_LIST)) {
-        return 0;
-    }
+//     if (!(read16 (nPCIConfig + PCI_STATUS) & PCI_STATUS_CAP_LIST)) {
+//         return 0;
+//     }
 
-    u8 uchCapPtr = read8 (nPCIConfig + PCI_CAPABILITY_LIST);
-    while (uchCapPtr != 0) {
-        if (read8 (nPCIConfig + uchCapPtr + PCI_CAP_LIST_ID) == uchCapID) {
-            return nPCIConfig + uchCapPtr;
-        }
+//     u8 uchCapPtr = read8 (nPCIConfig + PCI_CAPABILITY_LIST);
+//     while (uchCapPtr != 0) {
+//         if (read8 (nPCIConfig + uchCapPtr + PCI_CAP_LIST_ID) == uchCapID) {
+//             return nPCIConfig + uchCapPtr;
+//         }
 
-        uchCapPtr = read8 (nPCIConfig + uchCapPtr + PCI_CAP_LIST_NEXT);
-    }
+//         uchCapPtr = read8 (nPCIConfig + uchCapPtr + PCI_CAP_LIST_NEXT);
+//     }
 
-    return 0;
-}
+//     return 0;
+// }
 
 static void pcie_bridge_sw_init_set (pcie_hostbridge_t* host, unsigned val) {
     unsigned shift = RGR1_SW_INIT_1_INIT_GENERIC_SHIFT;
@@ -768,9 +768,9 @@ static int encode_ibar_size (u64 size) {
     return 0;
 }
 
-static u32 rd_fld (uintptr_t p, u32 mask, int shift) {
-    return (bcm_readl (p) & mask) >> shift;
-}
+// static u32 rd_fld (uintptr_t p, u32 mask, int shift) {
+//     return (bcm_readl (p) & mask) >> shift;
+// }
 
 static void wr_fld (uintptr_t p, u32 mask, int shift, u32 val) {
     u32 reg = bcm_readl (p);

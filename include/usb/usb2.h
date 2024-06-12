@@ -68,6 +68,7 @@ typedef enum usb_speed_t {
     eUSB_SPEED_UNKNOWN
 } usb_speed_t;
 
+
 typedef enum pid_t { ePID_DATA_0 = 0, ePID_DATA_1 = 2, ePID_SETUP = 3 } pid_t;
 
 typedef enum descriptor_type_t {

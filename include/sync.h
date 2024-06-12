@@ -38,8 +38,12 @@ void clean_data_cache_vaddr (uintptr_t vaddr, u64 size);
 void invalidate_data_cache_vaddr (uintptr_t vaddr, u64 size);
 void clean_invalidate_data_cache_vaddr (uintptr_t vaddr, u64 size);
 
-s32 enter_critical (u32 target_lvl);
-s32 leave_critical (void);
+typedef enum critical_section_target_t {
+    eCRITICAL_SECTION_TARGET_DISABLE_IRQ,
+    eCRITICAL_SECTION_TARGET_DISABLE_IRQ_FIQ
+} critical_section_target_t;
+bool enter_critical (critical_section_target_t target_lvl);
+void leave_critical (void);
 
 #endif // __ASSEMBLER__
 

@@ -1,4 +1,4 @@
-#include "peripherals/timer.h"
+#include "timer.h"
 #include "irq.h"
 #include "sync.h"
 
@@ -17,7 +17,6 @@ u32 get_arm_local_timer_freq (void) {
 
 static void sys_timer_irq_handler (u32 irq_id, void* context) {
     // LOG_INFO("Received Timer IRQ [%u]", timer.cur_ticks + 1);
-    // enter_critical (IRQ_DISABLED_FIQ_DISABLED_TARGET);
     /* Update compare register */
     write32 (
     VC_SYSTEM_TIMER_IRQID_TO_CO_REG (irq_id),
@@ -26,11 +25,12 @@ static void sys_timer_irq_handler (u32 irq_id, void* context) {
     /* Acknowledge timer status */
     write32 (VC_SYSTEM_TIMER_CS, read32 (VC_SYSTEM_TIMER_CS) | VC_SYSTEM_TIMER_IRQID_TO_MBIT (irq_id));
 
-    if ((++timer_.cur_ticks % TIMER_UPDATES_PER_SECOND) == 0) {
-        ++timer_.cur_seconds;
+    if (enter_critical (eCRITICAL_SECTION_TARGET_DISABLE_IRQ_FIQ)) {
+        if ((++timer_.cur_ticks % TIMER_UPDATES_PER_SECOND) == 0) {
+            ++timer_.cur_seconds;
+        }
+        leave_critical ();
     }
-
-    // leave_critical ();
 }
 
 s32 timer_init (u32 timer_irq_id) {

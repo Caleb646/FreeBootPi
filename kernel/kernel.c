@@ -4,10 +4,10 @@
 #include "dma.h"
 #include "irq.h"
 #include "mem.h"
-#include "peripherals/timer.h"
 #include "peripherals/uart.h"
 #include "screen.h"
 #include "sync.h"
+#include "timer.h"
 #include "usb/usb3.h"
 
 const char* entry_error_messages[] = {
@@ -82,14 +82,10 @@ void kernel_main (void) {
     extern uintptr_t __bss_start;
     extern uintptr_t __bss_end;
     LOG_DEBUG ("bss start [0x%X] bss end [0x%X]", (u32)(u64)&__bss_start, (u32)(u64)&__bss_end);
-    // for (u8* addr = (u8*)&__bss_start; (uintptr_t)addr < (uintptr_t)&__bss_end;) {
-    //     LOG_INFO ("0x%X", (u32)addr);
-    //     *addr++ = 0;
-    // }
+    LOG_DEBUG ("PCIe virtual start [0x%X] PCIe virtual end [0x%X]", MEM_PCIE_RANGE_START_VIRTUAL, MEM_PCIE_RANGE_END_VIRTUAL);
 
     irq_init ();
     timer_init (VC_GIC_SYSTEM_TIMER_IRQ_3);
-
     // Data Cache should be invalidated on reset and startup.
     // L1 cache for secondary cores should be as well.
     cache_invalidate ();
@@ -103,6 +99,7 @@ void kernel_main (void) {
 
     xhci_device_t* device = xhci_device_create ();
     bool status           = xhci_device_init (device);
+    (void)status;
 
     dma_init (NULLPTR);
     screen_init ();

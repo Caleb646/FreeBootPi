@@ -2,10 +2,8 @@
 #include "irq.h"
 #include "mem.h"
 #include "peripherals/vpu.h"
+#include "timer.h"
 
-#define MEM_PCIE_RANGE_START_VIRTUAL MEM_PCIE_RANGE_START
-#define MEM_PCIE_RANGE_END_VIRTUAL \
-    (MEM_PCIE_RANGE_START_VIRTUAL + MEM_PCIE_RANGE_SIZE - 1UL)
 #define ARM_XHCI0_BASE             MEM_PCIE_RANGE_START_VIRTUAL
 #define ARM_XHCI0_END              (ARM_XHCI0_BASE + 0x0FFF)
 
@@ -23,12 +21,16 @@
 #define XHCI_RT_IR_ERDP_LO_REG     0x18
 #define XHCI_RT_IR0_REG            0x20
 
-static xhci_device_t xhci_device_              = { 0 };
-static mmio_space_t mmio_space_                = { 0 };
-static xhci_slot_manager_t slot_manager_       = { 0 };
-static xhci_event_manager_t event_manager_     = { 0 };
-static xhci_command_manager_t command_manager_ = { 0 };
-static xhci_roothub_t roothub_                 = { 0 };
+#define XHCI_IS_USB2_PORT(portid)  ((portid) <= 2)
+
+static xhci_device_t xhci_device_                            = { 0 };
+static mmio_space_t mmio_space_                              = { 0 };
+static xhci_slot_manager_t slot_manager_                     = { 0 };
+static xhci_event_manager_t event_manager_                   = { 0 };
+static xhci_command_manager_t command_manager_               = { 0 };
+static xhci_roothub_t roothub_                               = { 0 };
+static bool is_usb_device_allocated[XHCI_CONFIG_MAX_PORTS]   = { 0 };
+static xhci_usb_device_t usb_devices_[XHCI_CONFIG_MAX_PORTS] = { 0 };
 #define BLOCK_SIZE      2048
 #define BLOCK_ALIGN     64
 #define BLOCK_BOUNDARY  0x10000
@@ -102,6 +104,11 @@ static mmio_space_t* mmio_space_create (void) {
 
 static void mmio_space_init (mmio_space_t* mmio, uintptr_t base_addr) {
     ASSERT (mmio != NULLPTR, "");
+    ASSERT (mmio->base == 0, "");
+    ASSERT (mmio->op_base == 0, "");
+    ASSERT (mmio->db_base == 0, "");
+    ASSERT (mmio->rt_base == 0, "");
+    ASSERT (mmio->pt_base == 0, "");
     mmio->base    = base_addr;
     mmio->op_base = base_addr + read8 (base_addr + 0x00);
     LOG_INFO ("1");
@@ -138,6 +145,13 @@ static bool xhci_roothub_init (xhci_device_t* host, xhci_roothub_t* roothub);
 static xhci_rootport_t*
 xhci_rootport_create (xhci_device_t* host, xhci_rootport_t* rootport, u32 port_id);
 static bool xhci_rootport_init (xhci_device_t* host, xhci_rootport_t* rootport);
+static bool xhci_rootport_is_connected (xhci_device_t* host, xhci_rootport_t* rootport);
+static bool xhci_rootport_configure (xhci_device_t* host, xhci_rootport_t* rootport);
+static bool
+xhci_rootport_waitfor_u0state (xhci_device_t* host, xhci_rootport_t* rootport, u32 ms_timeout);
+static usb_speed_t xhci_rootport_get_portspeed (xhci_device_t* host, xhci_rootport_t* rootport);
+static xhci_usb_device_t*
+xhci_usb_device_create (xhci_device_t* phost, xhci_rootport_t* prootport, usb_speed_t speed);
 
 static void* xhci_dma_allocate (size_t sz, size_t align, size_t boundary) {
     if (pdma_current_ == NULLPTR) {
@@ -275,8 +289,16 @@ xhci_roothub_create (xhci_device_t* host, xhci_roothub_t* roothub, u32 max_nport
     return roothub;
 }
 
-static bool xhci_roothub_init (xhci_device_t* host, xhci_roothub_t* roothub) {
-
+static bool xhci_roothub_init (xhci_device_t* phost, xhci_roothub_t* proothub) {
+    /*
+     * Wait for ports to settle
+     */
+    wait_ms (1000);
+    for (u32 i = 0; i < proothub->nports; ++i) {
+        if (xhci_rootport_init (phost, &proothub->rootports[i]) == false) {
+            LOG_ERROR ("XHCI failed to init port [%u]", i);
+        }
+    }
     return true;
 }
 
@@ -288,9 +310,71 @@ xhci_rootport_create (xhci_device_t* host, xhci_rootport_t* rootport, u32 port_i
     return rootport;
 }
 
-static bool xhci_rootport_init (xhci_device_t* host, xhci_rootport_t* rootport) {
+static bool xhci_rootport_init (xhci_device_t* phost, xhci_rootport_t* prootport) {
+    if (xhci_rootport_is_connected (phost, prootport) == false) {
+        return false;
+    }
+
+    if (XHCI_IS_USB2_PORT (prootport->port_idx + 1)) {
+        // TODO implement usb 2.0 reset here
+        LOG_INFO ("XHCI port is USB 2.0");
+    } else {
+        if (xhci_rootport_waitfor_u0state (phost, prootport, 10000) == false) {
+            LOG_ERROR ("XHCI port [%u] has wrong state", prootport->port_idx + 1);
+            return false;
+        }
+    }
+
+    wait_ms (100);
+    usb_speed_t speed = xhci_rootport_get_portspeed (phost, prootport);
+    if (speed == eUSB_SPEED_UNKNOWN) {
+        LOG_ERROR ("XHCI port [%u] has unknown speed", prootport->port_idx + 1);
+        return false;
+    }
+
+    xhci_usb_device_t* pdev = xhci_usb_device_create (phost, prootport, speed);
+    if (pdev == NULLPTR) {
+        LOG_ERROR ("XHCI no free usb devices");
+        return false;
+    }
+    prootport->pusb_dev = pdev;
 
     return true;
+}
+
+static bool xhci_rootport_is_connected (xhci_device_t* phost, xhci_rootport_t* prootport) {
+
+    return true;
+}
+
+static bool xhci_rootport_configure (xhci_device_t* phost, xhci_rootport_t* prootport) {
+
+    return true;
+}
+
+static bool
+xhci_rootport_waitfor_u0state (xhci_device_t* phost, xhci_rootport_t* prootport, u32 ms_timeout) {
+
+    return true;
+}
+
+static usb_speed_t
+xhci_rootport_get_portspeed (xhci_device_t* phost, xhci_rootport_t* prootport) {
+
+    return eUSB_SPEED_UNKNOWN;
+}
+
+static xhci_usb_device_t*
+xhci_usb_device_create (xhci_device_t* phost, xhci_rootport_t* prootport, usb_speed_t speed) {
+    for (u32 i = 0; i < XHCI_CONFIG_MAX_PORTS; ++i) {
+        if (is_usb_device_allocated[i] == false) {
+            is_usb_device_allocated[i] = true;
+            xhci_usb_device_t* dev     = &usb_devices_[i];
+            memset (dev, 0, sizeof (xhci_usb_device_t));
+            return dev;
+        }
+    }
+    return NULLPTR;
 }
 
 
@@ -398,6 +482,8 @@ bool xhci_device_init (xhci_device_t* host) {
     op_write32 (host->pmmio, XHCI_OP_USBCMD_REG, op_read32 (host->pmmio, XHCI_OP_USBCMD_REG) | (1 << 0));
 
     if (xhci_roothub_init (host, host->proothub) == false) {
+        LOG_ERROR ("XHCI failed to init roothub");
+        return false;
     }
 
     return true;

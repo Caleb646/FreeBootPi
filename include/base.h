@@ -164,27 +164,25 @@ STATIC_ASSERT ((sizeof (uintptr_t) == 8));
 extern u32 __kernel_start;
 extern u32 __kernel_text_end;
 extern u32 __kernel_end;
-
 // #define KERNEL_LOAD_ADDR    0x80000
+#define KERNEL_START_ADDR    ((uintptr_t)&__kernel_start)
+#define KERNEL_TEXT_END_ADDR ((uintptr_t)&__kernel_text_end)
+#define KERNEL_END_ADDR      ((uintptr_t)&__kernel_end)
 
-#define KERNEL_START_ADDR         ((uintptr_t)&__kernel_start)
-#define KERNEL_TEXT_END_ADDR      ((uintptr_t)&__kernel_text_end)
-#define KERNEL_END_ADDR           ((uintptr_t)&__kernel_end)
-// #define KERNEL_MEM_SIZE             (KERNEL_END - KERNEL_START)
+#define NULLPTR              ((void*)0)
+#define REG_PTR8(reg_addr)   *((u8 volatile*)reg_addr)
+#define REG_PTR16(reg_addr)  *((u16 volatile*)reg_addr)
+#define REG_PTR32(reg_addr)  *((u32 volatile*)reg_addr)
+#define REG_PTR64(reg_addr)  *((u64 volatile*)reg_addr)
 
-#define NULLPTR                   ((void*)0)
-#define REG_PTR8(reg_addr)        *((u8 volatile*)reg_addr)
-#define REG_PTR16(reg_addr)       *((u16 volatile*)reg_addr)
-#define REG_PTR32(reg_addr)       *((u32 volatile*)reg_addr)
-#define REG_PTR64(reg_addr)       *((u64 volatile*)reg_addr)
+#define ADDR_IS_ALIGNED(ptr, bit_idx) \
+    (((uintptr_t)ptr & ~((1 << bit_idx) - 1)) == 0)
 
 // #define STACKPTR(var)
 //     u64 var;
 //     asm volatile("mov %0, sp" : "=r"(var));
 
 #define U32_MAX                   0xFFFFFFFF
-#define FALSE                     0
-
 #define CACHE_LINE_NBYTES         64
 
 #define GCC_NODISCARD             __attribute__ ((__warn_unused_result__))

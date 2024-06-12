@@ -1,8 +1,8 @@
 #include "dma.h"
 #include "irq.h"
 #include "mem.h"
-#include "peripherals/timer.h"
 #include "sync.h"
+#include "timer.h"
 
 #define DMA_BASE              (PERIPH_BASE + 0x2007000)
 #define DMA_CHANNEL_OFFSET    0x100
@@ -207,7 +207,7 @@
  */
 static anonymous_cb_t GCC_ALIGN_ADDR (DMA_CB_BYTE_ALIGNMENT)
 allocated_channel_cbs[(MAX_DMA_CHANNEL_ID + 1) * DMA_MAX_CBS_PER_CHANNEL];
-static u32 volatile is_channel_allocated[MAX_DMA_CHANNEL_ID + 1];
+static bool volatile is_channel_allocated[MAX_DMA_CHANNEL_ID + 1];
 static dma_config_s dma_config;
 
 static s32 find_open_channel (dma_type_t dma_type) {
@@ -227,13 +227,13 @@ static s32 find_open_channel (dma_type_t dma_type) {
     }
 
     for (u32 i = start; i <= end; ++i) {
-        if (is_channel_allocated[i] == FALSE) {
+        if (is_channel_allocated[i] == false) {
             return i;
         }
     }
 
     for (u32 i = start; i <= end; ++i) {
-        if (DMA_CHANNEL_IS_ACTIVE (i) == FALSE) {
+        if (DMA_CHANNEL_IS_ACTIVE (i) == false) {
             return i;
         }
     }
@@ -246,7 +246,7 @@ static dma_status_t dma_allocate_channel (dma_type_t dma_type, u32* channel_out)
         return eDMA_STATUS_NO_CHANS;
     }
     *channel_out                     = channel_id;
-    is_channel_allocated[channel_id] = 1;
+    is_channel_allocated[channel_id] = true;
     return eDMA_STATUS_OK;
 }
 
@@ -281,7 +281,7 @@ static dma_status_t dma_delete_channel (u32 channel_id) {
      * Clear the end, error and interrupt bits and set the abort bit.
      */
     write32 (CS (channel_id), read32 (CS (channel_id)) | CS_ABORT_VAL | CS_END_BIT);
-    is_channel_allocated[channel_id] = 0;
+    is_channel_allocated[channel_id] = false;
     /*
      * Ensure DMA channel is stopped before the current cb is overwritten
      */
@@ -541,7 +541,7 @@ static void dma_irq_handler (u32 irq_id, void* context) {
 
 s32 dma_init (dma_config_s* config) {
     memset ((void*)allocated_channel_cbs, 0, sizeof (allocated_channel_cbs));
-    memset ((void*)is_channel_allocated, 0, sizeof (is_channel_allocated));
+    memset ((void*)is_channel_allocated, false, sizeof (is_channel_allocated));
 
     /*
      * Enable DMA Interrupts on the GIC and register a handler

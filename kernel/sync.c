@@ -143,40 +143,38 @@ void clean_invalidate_data_cache_vaddr (uintptr_t vaddr, u64 size) {
     DATA_SYNC_BARRIER_FS_ANY ();
 }
 
-static u32 volatile s_ncritical_lvl[ARM_NUM_CORES];
-static u64 volatile s_int_flags[ARM_NUM_CORES][MAX_NESTED_INTERRUPTS];
+static u32 volatile critical_lvl_[ARM_NUM_CORES];
+static u64 volatile int_flags_[ARM_NUM_CORES][MAX_NESTED_INTERRUPTS];
 
-s32 enter_critical (u32 target_lvl) {
+bool enter_critical (critical_section_target_t target_lvl) {
     u64 flags   = get_daif_flags ();
     u64 core_id = get_arm_core_id ();
-    if (s_ncritical_lvl[core_id] >= MAX_NESTED_INTERRUPTS) {
-        return 0;
+    ASSERT (core_id >= 0 && core_id < ARM_NUM_CORES, "");
+    if (critical_lvl_[core_id] >= MAX_NESTED_INTERRUPTS) {
+        return false;
     }
     DISABLE_IRQ_FIQ ();
     // Save DAIF flags to be restored after leaving interrupt
-    s_int_flags[core_id][s_ncritical_lvl[core_id]++] = flags;
+    int_flags_[core_id][critical_lvl_[core_id]++] = flags;
 
     /*
-     * Ensure all load & store operations are visible to this core
-     * before entering the critical section
+     * Ensure stores operations are visible
      */
-    DATA_MEMORY_BARRIER_NOSHARE_ANY ();
-    return 1;
+    DATA_MEMORY_BARRIER_FS_ANY ();
+    return true;
 }
 
-s32 leave_critical (void) {
+void leave_critical (void) {
     /*
-     * Ensure all load & store operations above the leave_critical call
-     * are visible to this core before exiting the critical section
+     * Ensure all load operations above the leave_critical call are visible
      */
-    DATA_MEMORY_BARRIER_NOSHARE_ANY ();
-
+    DATA_MEMORY_BARRIER_FS_ANY ();
     u64 core_id = get_arm_core_id ();
-    if (s_ncritical_lvl[core_id] <= 0) {
-        return 0;
+    ASSERT (core_id >= 0 && core_id < ARM_NUM_CORES, "");
+    if (critical_lvl_[core_id] <= 0) {
+        return;
     }
     // restore saved DAIF flags
-    u64 flags = s_int_flags[core_id][--s_ncritical_lvl[core_id]];
+    u64 flags = int_flags_[core_id][--critical_lvl_[core_id]];
     set_daif_flags (flags);
-    return 1;
 }

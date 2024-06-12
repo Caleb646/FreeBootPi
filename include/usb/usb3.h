@@ -13,10 +13,17 @@
 #define XHCI_PCIE_SLOT        0
 #define XHCI_PCIE_FUNC        0
 
-typedef struct xhci_slot_manager_t;
-typedef struct xhci_roothub_t;
-typedef struct xhci_device_t;
-typedef struct xhci_usb_device_t;
+// typedef struct xhci_slot_manager_t;
+// typedef struct xhci_roothub_t;
+// typedef struct xhci_device_t;
+// typedef struct xhci_usb_device_t;
+
+typedef enum usb_speed_t {
+    eUSB_SPEED_HIGH = 0,
+    eUSB_SPEED_FULL = 1,
+    eUSB_SPEED_LOW  = 2,
+    eUSB_SPEED_UNKNOWN
+} usb_speed_t;
 
 typedef struct mmio_space_t {
     uintptr_t base;     // Capability registers
@@ -96,12 +103,12 @@ typedef struct xhci_command_manager_t {
 } xhci_command_manager_t;
 
 typedef struct xhci_endpoint_t {
-
+    u32 for_compiler;
 } xhci_endpoint_t;
 
 typedef struct xhci_rootport_t {
     u32 port_idx;
-    xhci_usb_device_t usb_dev;
+    xhci_usb_device_t* pusb_dev;
 } xhci_rootport_t;
 
 typedef struct xhci_roothub_t {

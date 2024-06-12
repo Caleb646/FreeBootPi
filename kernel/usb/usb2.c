@@ -1,8 +1,8 @@
 #include "usb/usb2.h"
 #include "irq.h"
-#include "peripherals/timer.h"
 #include "peripherals/vpu.h"
 #include "sync.h"
+#include "timer.h"
 
 typedef void (*request_completion_routine) (hci_device_t* host, u32 chan);
 

@@ -2,10 +2,7 @@
 #define _PCIE_HOSTBRIDGE_H
 
 #include "base.h"
-
-#define MEM_PCIE_RANGE_START      0x600000000UL
-#define MEM_PCIE_RANGE_SIZE       0x4000000UL
-#define MEM_PCIE_RANGE_PCIE_START 0xF8000000UL // mapping on PCIe side
+#include "mem.h"
 
 typedef struct pcie_memory_window_t {
     u64 pcie_addr;
