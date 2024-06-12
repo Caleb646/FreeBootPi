@@ -2,7 +2,7 @@
 #include "irq.h"
 #include "sync.h"
 
-static timer_s volatile timer = { 0, 0, 0, 0 };
+static timer_s volatile timer_ = { 0 };
 
 u32 get_arm_local_timer_freq (void) {
     /* Bits [31:0] --- System counter clock frequency in Hz. */
@@ -17,21 +17,20 @@ u32 get_arm_local_timer_freq (void) {
 
 static void sys_timer_irq_handler (u32 irq_id, void* context) {
     // LOG_INFO("Received Timer IRQ [%u]", timer.cur_ticks + 1);
-    enter_critical (IRQ_DISABLED_FIQ_DISABLED_TARGET);
-
+    // enter_critical (IRQ_DISABLED_FIQ_DISABLED_TARGET);
     /* Update compare register */
     write32 (
     VC_SYSTEM_TIMER_IRQID_TO_CO_REG (irq_id),
-    read32 (VC_SYSTEM_TIMER_CLO) + timer.irq_interval);
+    read32 (VC_SYSTEM_TIMER_CLO) + timer_.irq_interval);
 
     /* Acknowledge timer status */
     write32 (VC_SYSTEM_TIMER_CS, read32 (VC_SYSTEM_TIMER_CS) | VC_SYSTEM_TIMER_IRQID_TO_MBIT (irq_id));
 
-    if ((++timer.cur_ticks % TIMER_UPDATES_PER_SECOND) == 0) {
-        ++timer.cur_seconds;
+    if ((++timer_.cur_ticks % TIMER_UPDATES_PER_SECOND) == 0) {
+        ++timer_.cur_seconds;
     }
 
-    leave_critical ();
+    // leave_critical ();
 }
 
 s32 timer_init (u32 timer_irq_id) {
@@ -40,10 +39,10 @@ s32 timer_init (u32 timer_irq_id) {
         return 0;
     }
     /* Initialize Timer Struct */
-    timer.cur_ticks    = 0;
-    timer.cur_seconds  = 0;
-    timer.irq_interval = VC_SYSTEM_CLOCK_HZ / TIMER_UPDATES_PER_SECOND;
-    timer.irq_id       = timer_irq_id;
+    timer_.cur_ticks    = 0;
+    timer_.cur_seconds  = 0;
+    timer_.irq_interval = VC_SYSTEM_CLOCK_HZ / TIMER_UPDATES_PER_SECOND;
+    timer_.irq_id       = timer_irq_id;
 
     /* Enable Timer Interrupt on GIC and Set Handler */
     gic_enable_interrupt (timer_irq_id, &sys_timer_irq_handler, NULLPTR);
@@ -51,12 +50,12 @@ s32 timer_init (u32 timer_irq_id) {
     /* Put new updated compare value in timer compare register */
     write32 (
     VC_SYSTEM_TIMER_IRQID_TO_CO_REG (timer_irq_id),
-    read32 (VC_SYSTEM_TIMER_CLO) + timer.irq_interval);
+    read32 (VC_SYSTEM_TIMER_CLO) + timer_.irq_interval);
     return 1;
 }
 
 u64 get_sys_time_s (void) {
-    return timer.cur_seconds;
+    return timer_.cur_seconds;
 }
 
 u64 get_sys_time_ms (void) {

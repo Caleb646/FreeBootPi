@@ -13,35 +13,35 @@ typedef void (*request_completion_routine) (hci_device_t* host, u32 chan);
 /*
  * DMA ring buffer for sending and receiving packets
  */
-static u8 GCC_CACHE_ALIGNED dma_ring_buf_[CACHE_LINE_NBYTES * MAX_NCHANNELS * 4];
-static u8* cur_ptr_dma_ring_buf_ = NULLPTR;
-static uintptr_t start_dma_ring_buf_;
-static uintptr_t end_dma_ring_buf_;
-STATIC_ASSERT ((sizeof (dma_ring_buf_) % CACHE_LINE_NBYTES == 0));
+// static u8 GCC_CACHE_ALIGNED dma_ring_buf_[CACHE_LINE_NBYTES * MAX_NCHANNELS * 4];
+// static u8* cur_ptr_dma_ring_buf_ = NULLPTR;
+// static uintptr_t start_dma_ring_buf_;
+// static uintptr_t end_dma_ring_buf_;
+// STATIC_ASSERT ((sizeof (dma_ring_buf_) % CACHE_LINE_NBYTES == 0));
 // static usb_info_t usb_info_          = { 0 };
 // static hci_device_t hci_root_device_ = { 0 };
 // static usb_device_t usb_root_device_ = { 0 };
 // static hci_root_port_t hci_root_port_ = { 0 };
 
-static void* allocate_dma_buffer_ (u64 sz) {
-    if (cur_ptr_dma_ring_buf_ == NULLPTR) {
-        cur_ptr_dma_ring_buf_ = &dma_ring_buf_[0];
-        start_dma_ring_buf_   = (uintptr_t)&dma_ring_buf_[0];
-        end_dma_ring_buf_ = (uintptr_t)&dma_ring_buf_[sizeof (dma_ring_buf_) - 1];
-    }
-    u64 mod        = sz % CACHE_LINE_NBYTES;
-    u64 aligned_sz = sz + (sz * (mod != 0) - mod);
-    ASSERT (
-    (end_dma_ring_buf_ - start_dma_ring_buf_ > aligned_sz),
-    "USB failed to allocate buffer with cache aligned size [%u]", aligned_sz);
+// static void* allocate_dma_buffer_ (u64 sz) {
+//     if (cur_ptr_dma_ring_buf_ == NULLPTR) {
+//         cur_ptr_dma_ring_buf_ = &dma_ring_buf_[0];
+//         start_dma_ring_buf_   = (uintptr_t)&dma_ring_buf_[0];
+//         end_dma_ring_buf_ = (uintptr_t)&dma_ring_buf_[sizeof (dma_ring_buf_) - 1];
+//     }
+//     u64 mod        = sz % CACHE_LINE_NBYTES;
+//     u64 aligned_sz = sz + (sz * (mod != 0) - mod);
+//     ASSERT (
+//     (end_dma_ring_buf_ - start_dma_ring_buf_ > aligned_sz),
+//     "USB failed to allocate buffer with cache aligned size [%u]", aligned_sz);
 
-    if ((uintptr_t)cur_ptr_dma_ring_buf_ + aligned_sz > end_dma_ring_buf_) {
-        cur_ptr_dma_ring_buf_ = &dma_ring_buf_[0];
-    }
-    void* ret = cur_ptr_dma_ring_buf_;
-    cur_ptr_dma_ring_buf_ += aligned_sz;
-    return ret;
-}
+//     if ((uintptr_t)cur_ptr_dma_ring_buf_ + aligned_sz > end_dma_ring_buf_) {
+//         cur_ptr_dma_ring_buf_ = &dma_ring_buf_[0];
+//     }
+//     void* ret = cur_ptr_dma_ring_buf_;
+//     cur_ptr_dma_ring_buf_ += aligned_sz;
+//     return ret;
+// }
 
 static bool wait_for_bit_ (u64 reg_addr, u32 mask, bool wait_until_set, u32 ms_timeout) {
     while ((read32 (reg_addr) & mask) ? !wait_until_set : wait_until_set) {
@@ -311,9 +311,9 @@ static void hci_start_channel (hci_device_t* host, stage_data_t* stage_data) {
     write32 (HOST_CHAN_TRANSFER_INFO_REG (chan), transfer_info);
     // Allocate a dma buffer that is aligned to the cache line size in
     // address and size
-    void* dma_buffer = allocate_dma_buffer_ (bytes_to_transfer);
-    memcpy (stage_data->ptransfer_buf, bytes_to_transfer, dma_buffer);
-    stage_data->ptransfer_buf = dma_buffer;
+    // void* dma_buffer = allocate_dma_buffer_ (bytes_to_transfer);
+    // memcpy (stage_data->ptransfer_buf, bytes_to_transfer, dma_buffer);
+    // stage_data->ptransfer_buf = dma_buffer;
     // Convert stage_data's transfer buf address to a VPU address
     // Then give it to the DMA reg
     uintptr_t buf_addr = (uintptr_t)stage_data->ptransfer_buf;

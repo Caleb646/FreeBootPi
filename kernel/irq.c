@@ -145,6 +145,7 @@ void handle_irq (void) {
     u32 irq_ack_reg = read32 (GICC_IAR);
     u32 irq         = irq_ack_reg & 0x3FF;
     if (irq < GIC_NUM_INTERRUPTS) {
+        // LOG_DEBUG ("Interrupt %u", irq);
         u32 core_id   = get_arm_core_id ();
         void* context = irq_contexts_[core_id][irq];
         irq_handlers_[get_arm_core_id ()][irq](irq, context);

@@ -1,4 +1,5 @@
 #include "usb/usb3.h"
+#include "irq.h"
 #include "mem.h"
 #include "peripherals/vpu.h"
 
@@ -20,6 +21,7 @@
 #define XHCI_RT_IR_ERSTSZ_REG      0x08
 #define XHCI_RT_IR_ERSTBA_LO_REG   0x10
 #define XHCI_RT_IR_ERDP_LO_REG     0x18
+#define XHCI_RT_IR0_REG            0x20
 
 static xhci_device_t xhci_device_              = { 0 };
 static mmio_space_t mmio_space_                = { 0 };
@@ -66,6 +68,10 @@ static void op_write64 (mmio_space_t* mmio, u32 offset, u64 value) {
     op_write32 (mmio, offset + 4, (u32)(value >> 32));
 }
 
+static u32 op_read32 (mmio_space_t* mmio, u32 offset) {
+    return read32 (mmio->op_base + offset);
+}
+
 static bool op_wait32 (mmio_space_t* mmio, u32 offset, u32 mask, u32 expected_value, s32 us_timeout) {
     do {
         if ((op_read32 (mmio, offset) & mask) == expected_value) {
@@ -75,8 +81,18 @@ static bool op_wait32 (mmio_space_t* mmio, u32 offset, u32 mask, u32 expected_va
     return false;
 }
 
-static u32 op_read32 (mmio_space_t* mmio, u32 offset) {
-    return read32 (mmio->op_base + offset);
+static void rt_write64 (mmio_space_t* mmio, u32 interrupter, u32 offset, u64 value) {
+    uintptr_t addr = mmio->rt_base + XHCI_RT_IR0_REG + interrupter * 0x20 + offset;
+    write32 (addr, (u32)value);
+    write32 (addr + 4, (u32)(value >> 32));
+}
+
+static void rt_write32 (mmio_space_t* mmio, u32 interrupter, u32 offset, u32 value) {
+    write32 (mmio->rt_base + XHCI_RT_IR0_REG + interrupter * 0x20 + offset, value);
+}
+
+static u32 rt_read32 (mmio_space_t* mmio, u32 interrupter, u32 offset) {
+    return read32 (mmio->rt_base + XHCI_RT_IR0_REG + interrupter * 0x20 + offset);
 }
 
 static mmio_space_t* mmio_space_create (void) {
@@ -85,29 +101,34 @@ static mmio_space_t* mmio_space_create (void) {
 }
 
 static void mmio_space_init (mmio_space_t* mmio, uintptr_t base_addr) {
-    // TODO: raspberry pi hangs somewhere is this function
+    ASSERT (mmio != NULLPTR, "");
     mmio->base    = base_addr;
     mmio->op_base = base_addr + read8 (base_addr + 0x00);
+    LOG_INFO ("1");
     mmio->db_base = base_addr + (cap_read32_raw (mmio, 0x14) & 0xFFFFFFFC);
+    LOG_INFO ("2");
     mmio->rt_base = base_addr + (cap_read32_raw (mmio, 0x18) & 0xFFFFFFE0);
     mmio->pt_base = mmio->op_base + 0x400;
-
+    LOG_INFO ("2");
     mmio->hcx_params[0] = cap_read32_raw (mmio, 0x04);
     mmio->hcx_params[1] = cap_read32_raw (mmio, 0x08);
     mmio->hcx_params[2] = cap_read32_raw (mmio, 0x0C);
     mmio->hcx_params[3] = cap_read32_raw (mmio, 0x10);
-
+    LOG_INFO ("3");
     mmio->ecp_base =
     base_addr + ((cap_read32_raw (mmio, 0x10) & (0xFFFF << 16)) >> 16 << 2);
 }
 
 static void* xhci_dma_allocate (size_t sz, size_t align, size_t boundary);
 static bool xhci_hardware_reset (xhci_device_t* host);
-static void xhci_slot_manager_init (xhci_device_t* host, xhci_slot_manager_t* man);
+static xhci_slot_manager_t*
+xhci_slot_manager_create (xhci_device_t* host, xhci_slot_manager_t* man);
 static void
 xhci_slot_assign_scratch_pad_buffer_array (xhci_device_t* host, xhci_slot_manager_t* man, u64* scratch_pad);
-static void xhci_event_manager_init (xhci_device_t* host, xhci_event_manager_t* man);
-static void xhci_command_manager_init (xhci_device_t* host, xhci_command_manager_t* man);
+static xhci_event_manager_t*
+xhci_event_manager_create (xhci_device_t* host, xhci_event_manager_t* man);
+static xhci_command_manager_t*
+xhci_command_manager_create (xhci_device_t* host, xhci_command_manager_t* man);
 static void
 xhci_ring_init (xhci_device_t* host, xhci_ring_t* ring, xhci_ring_type_t type, size_t size);
 static xhci_trb_t* xhci_ring_get_first_trb (xhci_device_t* host, xhci_ring_t* ring);
@@ -156,7 +177,8 @@ static bool xhci_hardware_reset (xhci_device_t* host) {
     return true;
 }
 
-static void xhci_slot_manager_init (xhci_device_t* host, xhci_slot_manager_t* man) {
+static xhci_slot_manager_t*
+xhci_slot_manager_create (xhci_device_t* host, xhci_slot_manager_t* man) {
     op_write32 (
     host->pmmio, XHCI_OP_CONFIG_REG,
     (op_read32 (host->pmmio, XHCI_OP_CONFIG_REG) & ~0xFF) | XHCI_CONFIG_MAX_SLOTS);
@@ -167,15 +189,18 @@ static void xhci_slot_manager_init (xhci_device_t* host, xhci_slot_manager_t* ma
 
     op_write64 (
     host->pmmio, XHCI_OP_DCBAAP_REG, XHCI_TO_DMA (man->pdcbaa, host->ppcie->s_nDMAAddress));
+
+    return man;
 }
 
 static void
 xhci_slot_assign_scratch_pad_buffer_array (xhci_device_t* host, xhci_slot_manager_t* man, u64* scratch_pad) {
     ASSERT (scratch_pad != NULLPTR, "XHCI invalid scratch pad buffer");
-    man->pdcbaa[0] = scratch_pad;
+    man->pdcbaa[0] = XHCI_TO_DMA (scratch_pad, host->ppcie->s_nDMAAddress);
 }
 
-static void xhci_event_manager_init (xhci_device_t* host, xhci_event_manager_t* man) {
+static xhci_event_manager_t*
+xhci_event_manager_create (xhci_device_t* host, xhci_event_manager_t* man) {
     xhci_ring_init (host, &man->event_ring, eXHCI_RING_TYPE_EVENT, 256);
 
     man->perst = xhci_dma_allocate (sizeof (xhci_erst_entry_t), BLOCK_ALIGN, BLOCK_BOUNDARY);
@@ -199,9 +224,12 @@ static void xhci_event_manager_init (xhci_device_t* host, xhci_event_manager_t* 
     rt_write32 (
     host->pmmio, 0, XHCI_RT_IR_IMAN_REG,
     rt_read32 (host->pmmio, 0, XHCI_RT_IR_IMAN_REG) | (1 << 1));
+
+    return man;
 }
 
-static void xhci_command_manager_init (xhci_device_t* host, xhci_command_manager_t* man) {
+static xhci_command_manager_t*
+xhci_command_manager_create (xhci_device_t* host, xhci_command_manager_t* man) {
     xhci_ring_init (host, &man->cmd_ring, eXHCI_RING_TYPE_COMMAND, 64);
     man->is_cmd_completed = true;
     man->pcur_cmd_trb     = NULLPTR;
@@ -210,6 +238,32 @@ static void xhci_command_manager_init (xhci_device_t* host, xhci_command_manager
     op_write64 (
     host->pmmio, XHCI_OP_CRCR_REG,
     XHCI_TO_DMA (pfirst_trb, host->ppcie->s_nDMAAddress) | man->cmd_ring.cycle_state);
+
+    return man;
+}
+
+static void
+xhci_ring_init (xhci_device_t* host, xhci_ring_t* ring, xhci_ring_type_t type, size_t trb_count) {
+    ASSERT (trb_count >= 16, "");
+    ASSERT (trb_count % 4 == 0, "");
+    ring->type      = type;
+    ring->trb_count = trb_count;
+    ring->pfirst_trb =
+    (xhci_trb_t*)xhci_dma_allocate (trb_count * sizeof (xhci_trb_t), 64, 0x10000);
+    ASSERT (ring->pfirst_trb != NULLPTR, "");
+    if (type != eXHCI_RING_TYPE_EVENT) {
+#define XHCI_TRB_TYPE_LINK       6
+#define XHCI_LINK_TRB_CONTROL_TC (1 << 1)
+        xhci_trb_t* pLinkTRB = &ring->pfirst_trb[trb_count - 1];
+        pLinkTRB->parameter = XHCI_TO_DMA (ring->pfirst_trb, host->ppcie->s_nDMAAddress);
+        pLinkTRB->status = 0;
+        pLinkTRB->control = XHCI_TRB_TYPE_LINK << XHCI_TRB_CONTROL_TRB_TYPE__SHIFT |
+                            XHCI_LINK_TRB_CONTROL_TC;
+    }
+}
+
+static xhci_trb_t* xhci_ring_get_first_trb (xhci_device_t* host, xhci_ring_t* ring) {
+    return ring->pfirst_trb;
 }
 
 static xhci_roothub_t*
@@ -218,9 +272,12 @@ xhci_roothub_create (xhci_device_t* host, xhci_roothub_t* roothub, u32 max_nport
     for (u32 port_idx = 0; port_idx < max_nports; ++port_idx) {
         xhci_rootport_create (host, &roothub->rootports[port_idx], port_idx + 1);
     }
+    return roothub;
 }
 
 static bool xhci_roothub_init (xhci_device_t* host, xhci_roothub_t* roothub) {
+
+    return true;
 }
 
 static xhci_rootport_t*
@@ -232,6 +289,8 @@ xhci_rootport_create (xhci_device_t* host, xhci_rootport_t* rootport, u32 port_i
 }
 
 static bool xhci_rootport_init (xhci_device_t* host, xhci_rootport_t* rootport) {
+
+    return true;
 }
 
 
@@ -257,6 +316,10 @@ bool xhci_device_init (xhci_device_t* host) {
     // load VIA VL805 firmware after PCIe reset
     VPU_CMB_BUFF_INIT (0x00030058, 4, 4, (1 << 20) | (0 << 15) | (0 << 12));
     vpu_status_t status = vpu_call (&cmd_buffer, VPU_MBOX_CH_PROP);
+    if (status != eVPU_STATUS_OK) {
+        LOG_ERROR ("XHCI failed to load firmware for VL805");
+        return false;
+    }
     if (pcie_hostbridge_enable_device (host->ppcie, XHCI_PCI_CLASS_CODE, XHCI_PCIE_SLOT, XHCI_PCIE_FUNC) == false) {
         LOG_ERROR ("USB cannot enable xHCI device");
         return false;
@@ -267,8 +330,27 @@ bool xhci_device_init (xhci_device_t* host) {
         LOG_ERROR ("USB unsupported xHCI version [0x%X]", version);
         return false;
     }
-    LOG_INFO ("1");
+    // TODO: disabling interrupts fixes the hang but mmio space init still hangs
+    // The interrupt problem has to do with the enter and leave critical
+    // functions DISABLE_IRQ_FIQ ();
     mmio_space_init (host->pmmio, base_addr);
+    // DISABLE_IRQ_FIQ ();
+    LOG_INFO ("11");
+    LOG_INFO ("11");
+    LOG_INFO ("11");
+    LOG_INFO ("11");
+    LOG_INFO ("11");
+    LOG_INFO ("11");
+    LOG_INFO ("11");
+    LOG_INFO ("11");
+    LOG_INFO ("11");
+    LOG_INFO ("11");
+    LOG_INFO ("11");
+    LOG_INFO ("11");
+    LOG_INFO ("11");
+    LOG_INFO ("11");
+    LOG_INFO ("11");
+    LOG_INFO ("11");
     LOG_INFO ("2");
 
     u32 nmax_ports = cap_read32 (host->pmmio, 0x04) & 0xFF;
@@ -284,6 +366,10 @@ bool xhci_device_init (xhci_device_t* host) {
         LOG_ERROR ("USB failed to reset hardware");
         return false;
     }
+
+    host->pslot_man    = xhci_slot_manager_create (host, &slot_manager_);
+    host->pevent_man   = xhci_event_manager_create (host, &event_manager_);
+    host->pcommand_man = xhci_command_manager_create (host, &command_manager_);
 
     ASSERT (op_read32 (host->pmmio, 0x08) & (1 << 0), "XHCI wrong page size");
     ASSERT (nmax_scratch_pads > 0, "XHCI invalid number of scratch pads");
@@ -310,6 +396,9 @@ bool xhci_device_init (xhci_device_t* host) {
 
     op_write32 (host->pmmio, XHCI_OP_USBCMD_REG, op_read32 (host->pmmio, XHCI_OP_USBCMD_REG) | (1 << 2));
     op_write32 (host->pmmio, XHCI_OP_USBCMD_REG, op_read32 (host->pmmio, XHCI_OP_USBCMD_REG) | (1 << 0));
+
+    if (xhci_roothub_init (host, host->proothub) == false) {
+    }
 
     return true;
 }

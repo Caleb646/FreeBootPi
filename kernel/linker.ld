@@ -72,7 +72,7 @@ SECTIONS
         __stack_start_core0__ = .;
         . = . + 16384;				/* EL0 stack size */
         __EL0_stack_core0 = .;
-        . = . + 16384;				/* EL1 stack size */
+        . = . + 65536;				/* EL1 stack size */
         __EL1_stack_core0 = .;
         . = . + 16384;				/* EL2 stack size (start-up) */
         __EL2_stack_core0 = .;
@@ -90,10 +90,10 @@ SECTIONS
     .rodata : { *(.rodata .rodata.* .gnu.linkonce.r*) }
     PROVIDE(_data = .);
     .data : { *(.data .data.* .gnu.linkonce.d*) }
-    .bss (NOLOAD) : {
+    .bss : {
         . = ALIGN(16);
         __bss_start = .;
-        *(.bss .bss.*)
+        *(.bss*)
         *(COMMON)
         __bss_end = .;
     }

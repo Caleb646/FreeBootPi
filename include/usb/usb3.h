@@ -16,6 +16,7 @@
 typedef struct xhci_slot_manager_t;
 typedef struct xhci_roothub_t;
 typedef struct xhci_device_t;
+typedef struct xhci_usb_device_t;
 
 typedef struct mmio_space_t {
     uintptr_t base;     // Capability registers
@@ -26,6 +27,10 @@ typedef struct mmio_space_t {
     uintptr_t ecp_base; // Extended capabilities
     u32 hcx_params[4];  // Capability cache
 } mmio_space_t;
+
+typedef struct xhci_usb_device_t {
+    u8 slot_id;
+} xhci_usb_device_t;
 
 typedef struct xhci_slot_manager_t {
     u64* pdcbaa;
@@ -51,8 +56,22 @@ typedef enum xhci_ring_type_t {
 } xhci_ring_type_t;
 
 typedef struct xhci_trb_t {
+    union {
+        struct {
+            u32 parameter1;
+            u32 parameter2;
+        };
+        u64 parameter;
+    };
 
+    u32 status;
+    u32 control;
+#define XHCI_TRB_CONTROL_C               (1 << 0)
+#define XHCI_TRB_CONTROL_TRB_TYPE__SHIFT 10
+#define XHCI_TRB_CONTROL_TRB_TYPE__MASK  (0x3F << 10)
 } xhci_trb_t;
+
+STATIC_ASSERT (sizeof (xhci_trb_t) == 16);
 
 typedef struct xhci_ring_t {
     xhci_trb_t* pfirst_trb;
@@ -79,10 +98,6 @@ typedef struct xhci_command_manager_t {
 typedef struct xhci_endpoint_t {
 
 } xhci_endpoint_t;
-
-typedef struct xhci_usb_device_t {
-    u8 slot_id;
-} xhci_usb_device_t;
 
 typedef struct xhci_rootport_t {
     u32 port_idx;

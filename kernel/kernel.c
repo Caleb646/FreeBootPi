@@ -78,6 +78,14 @@ void show_invalid_entry_message (s32 type, u32 esr, u32 address) {
 void kernel_main (void) {
     init_printf (0, putc);
     LOG_DEBUG ("Exception Level: [0x%X]", get_arm_exception_lvl ());
+    LOG_DEBUG ("Kernel Start [0x%X] Kernel End [0x%X]", (u32)KERNEL_START_ADDR, (u32)KERNEL_END_ADDR);
+    extern uintptr_t __bss_start;
+    extern uintptr_t __bss_end;
+    LOG_DEBUG ("bss start [0x%X] bss end [0x%X]", (u32)(u64)&__bss_start, (u32)(u64)&__bss_end);
+    // for (u8* addr = (u8*)&__bss_start; (uintptr_t)addr < (uintptr_t)&__bss_end;) {
+    //     LOG_INFO ("0x%X", (u32)addr);
+    //     *addr++ = 0;
+    // }
 
     irq_init ();
     timer_init (VC_GIC_SYSTEM_TIMER_IRQ_3);
@@ -86,6 +94,12 @@ void kernel_main (void) {
     // L1 cache for secondary cores should be as well.
     cache_invalidate ();
     mem_init (NULLPTR);
+
+    // u64 value;
+    // for (uintptr_t addr = 0x89ddc; addr < 0x90000; addr += 8) {
+    //     value = *(u64*)addr;
+    //     LOG_INFO ("0x%X", (u32)addr);
+    // }
 
     xhci_device_t* device = xhci_device_create ();
     bool status           = xhci_device_init (device);

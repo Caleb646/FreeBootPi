@@ -178,6 +178,10 @@ extern u32 __kernel_end;
 #define REG_PTR32(reg_addr)       *((u32 volatile*)reg_addr)
 #define REG_PTR64(reg_addr)       *((u64 volatile*)reg_addr)
 
+// #define STACKPTR(var)
+//     u64 var;
+//     asm volatile("mov %0, sp" : "=r"(var));
+
 #define U32_MAX                   0xFFFFFFFF
 #define FALSE                     0
 
