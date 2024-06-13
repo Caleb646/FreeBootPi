@@ -4,7 +4,7 @@
 #include "base.h"
 #include "usb/pcie_hostbridge.h"
 
-#define XHCI_CONFIG_MAX_PORTS 3
+#define XHCI_CONFIG_MAX_PORTS 5
 #define XHCI_MAX_ENDPOINTS    31
 #define XHCI_CONFIG_MAX_SLOTS 64
 #define XHCI_PAGE_SIZE        4096

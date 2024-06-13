@@ -99,6 +99,18 @@ SECTIONS
     }
     __kernel_end = .;
 
+    /* 
+    * Device Coherent Region
+    *
+    * Cache aligned
+    */
+    coherent : {
+        . = ALIGN(0x10000);
+        __device_coherent_start = .;
+        . = . + 1048576;
+        __device_coherent_end = .;
+    }
+
    /DISCARD/ : { *(.comment) *(.gnu*) *(.note*) *(.eh_frame*) }
     __bss_size = (__bss_end - __bss_start); 
 }

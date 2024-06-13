@@ -169,19 +169,18 @@ extern u32 __kernel_end;
 #define KERNEL_TEXT_END_ADDR ((uintptr_t)&__kernel_text_end)
 #define KERNEL_END_ADDR      ((uintptr_t)&__kernel_end)
 
-#define NULLPTR              ((void*)0)
 #define REG_PTR8(reg_addr)   *((u8 volatile*)reg_addr)
 #define REG_PTR16(reg_addr)  *((u16 volatile*)reg_addr)
 #define REG_PTR32(reg_addr)  *((u32 volatile*)reg_addr)
 #define REG_PTR64(reg_addr)  *((u64 volatile*)reg_addr)
 
 #define ADDR_IS_ALIGNED(ptr, bit_idx) \
-    (((uintptr_t)ptr & ~((1 << bit_idx) - 1)) == 0)
+    (((uintptr_t)ptr & ((1 << bit_idx) - 1)) == 0)
 
 // #define STACKPTR(var)
 //     u64 var;
 //     asm volatile("mov %0, sp" : "=r"(var));
-
+#define NULLPTR                   ((void*)0)
 #define U32_MAX                   0xFFFFFFFF
 #define CACHE_LINE_NBYTES         64
 

@@ -92,9 +92,10 @@ void kernel_main (void) {
     mem_init (NULLPTR);
 
     // u64 value;
-    // for (uintptr_t addr = 0x89ddc; addr < 0x90000; addr += 8) {
-    //     value = *(u64*)addr;
+    // for (uintptr_t addr = MEM_PCIE_RANGE_START_VIRTUAL;
+    //      addr < MEM_PCIE_RANGE_END_VIRTUAL; addr += sizeof (u16)) {
     //     LOG_INFO ("0x%X", (u32)addr);
+    //     value = *(u16*)addr;
     // }
 
     xhci_device_t* device = xhci_device_create ();

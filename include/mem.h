@@ -16,6 +16,10 @@ extern u8 high_heap[TEST_HEAP_SIZE];
 #define ARM_DRAM_HIGH_MEM_START &(high_heap[0])
 #define ARM_DRAM_HIGH_MEM_END   &(high_heap[TEST_HEAP_SIZE])
 #else
+
+#define PAGE_SIZE                    0x1000
+#define VTABLE_PAGE_SIZE             0x10000 // 64KB
+
 /*
  * Full 35-bit address map
  *   Seen by both "large address" masters (e.g. the eDMA_TYPE_4 engines) and the ARM CPU.
@@ -33,10 +37,17 @@ extern u8 high_heap[TEST_HEAP_SIZE];
 /* Assume VC DRAM is no larger than 256 MBs (0xF424000) */
 #define VC_DRAM_MEM_START            (VC_DRAM_MEM_END - 0xF424000)
 /*
+ * Coherent section of memory
+ */
+extern u32 __device_coherent_start;
+extern u32 __device_coherent_end;
+#define ARM_DRAM_COHERENT_START      ((uintptr_t)&__device_coherent_start)
+#define ARM_DRAM_COHERENT_END        ((uintptr_t)&__device_coherent_end)
+/*
  * Low DRAM for ARM is where the Kernel ends and VPU starts
  * Below this is where armstub put spin table for the secondary cores.
  */
-#define ARM_DRAM_LOW_MEM_START       KERNEL_END_ADDR
+#define ARM_DRAM_LOW_MEM_START       (ARM_DRAM_COHERENT_END + VTABLE_PAGE_SIZE)
 #define ARM_DRAM_LOW_MEM_END         VC_DRAM_MEM_START
 #define ARM_DRAM_MID_MEM_START       0x040000000 /* Top of SDRAM for the Video Core */
 #define ARM_DRAM_MID_MEM_END         0x0FC000000 /* Start of the Main Peripherals */
@@ -53,23 +64,25 @@ extern u8 high_heap[TEST_HEAP_SIZE];
 #define MEM_PCIE_RANGE_END_VIRTUAL \
     (MEM_PCIE_RANGE_START_VIRTUAL + MEM_PCIE_RANGE_SIZE - 1UL)
 
-#define PAGE_SIZE 0x10000 // 64KB
 
 #endif
 
 /* Size of cache line */
 #define MALLOC_ADDR_ALIGNMENT      64
 #define MALLOC_ADDR_ALIGNMENT_MASK (~(MALLOC_ADDR_ALIGNMENT - 1))
-#define MEM_NUM_HEAP_SECTIONS      2
+#define MEM_NUM_HEAP_SECTIONS      3
 
 #ifndef __ASSEMBLER__
 
 typedef enum heap_id_t {
-    eHEAP_ID_LOW = 0,
-    eHEAP_ID_MID = 1,
-    // eHEAP_ID_HIGH    = 2,
-    eHEAP_ID_DEFAULT = eHEAP_ID_MID
+    eHEAP_ID_COHERENT = 0,
+    eHEAP_ID_LOW      = 1,
+    eHEAP_ID_MID      = 2,
+
+    eHEAP_ID_UNKNOWN
 } heap_id_t;
+
+STATIC_ASSERT (eHEAP_ID_UNKNOWN == MEM_NUM_HEAP_SECTIONS);
 
 /* Do NOT adjust order of node_t members*/
 typedef struct node_t {
@@ -90,8 +103,10 @@ GCC_NODISCARD void* callocate (heap_id_t heap_id, size_t sz);
 GCC_NODISCARD void* calign_allocate (heap_id_t heap_id, size_t sz, size_t alignment);
 GCC_NODISCARD void* align_allocate_set (size_t sz, u8 value, size_t alignment);
 GCC_NODISCARD void* allocate (size_t sz);
+GCC_NODISCARD void* align_coherent_allocate (size_t sz, size_t alignment);
 
-GCC_NODISCARD void* page_allocate (void);
+GCC_NODISCARD void* npage_allocate (heap_id_t heap_id, u64 npages);
+GCC_NODISCARD void* npage_coherent_allocate (u64 npages);
 
 void delete (void* ptr);
 bool mem_init (heap_t (*config)[MEM_NUM_HEAP_SECTIONS]);

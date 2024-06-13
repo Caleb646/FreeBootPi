@@ -13,7 +13,8 @@ static heap_t heaps_[MEM_NUM_HEAP_SECTIONS];
 
 static s32 find_heap_id_ (void const* ptr);
 static bool heap_is_valid_ (heap_t const* heap);
-static bool heaps_are_valid_ (heap_t const (*pheaps)[MEM_NUM_HEAP_SECTIONS]);
+static bool heaps_are_valid_ (heap_t const pheaps[1][MEM_NUM_HEAP_SECTIONS]);
+// static uintptr_t align_address_ (uintptr_t addr, u64 alignment);
 GCC_NODISCARD static void* align_allocate_ (heap_id_t heap_id, size_t sz, size_t alignment);
 
 static s32 find_heap_id_ (void const* ptr) {
@@ -34,27 +35,39 @@ static bool heap_is_valid_ (heap_t const* pheap) {
     return pheap->end > pheap->start;
 }
 
-static bool heaps_are_valid_ (heap_t const (*pheaps)[MEM_NUM_HEAP_SECTIONS]) {
+static bool heaps_are_valid_ (heap_t const pheaps[1][MEM_NUM_HEAP_SECTIONS]) {
     for (u32 i = 0; i < MEM_NUM_HEAP_SECTIONS; ++i) {
-        if (heap_is_valid_ (pheaps[i]) == false) {
+        if (heap_is_valid_ (&pheaps[0][i]) == false) {
             return false;
         }
-        uintptr_t is = pheaps[i]->start;
-        uintptr_t ie = pheaps[i]->end;
-        for (u32 j = i; j < MEM_NUM_HEAP_SECTIONS; ++j) {
-            uintptr_t js      = pheaps[j]->start;
-            uintptr_t je      = pheaps[j]->end;
+        uintptr_t is = pheaps[0][i].start;
+        uintptr_t ie = pheaps[0][i].end;
+        for (u32 j = i + 1; j < MEM_NUM_HEAP_SECTIONS; ++j) {
+            uintptr_t js      = pheaps[0][j].start;
+            uintptr_t je      = pheaps[0][j].end;
             bool does_overlap = is >= js && is <= je;
             does_overlap |= ie >= js && ie <= je;
             does_overlap |= js >= is && js <= ie;
             does_overlap |= je >= is && je <= ie;
             if (does_overlap) {
+                LOG_ERROR (
+                "Invalid heap 1st start [0x%X] end [0x%X] -- 2nd start [0x%X] "
+                "end "
+                "[0x%X]",
+                (u32)is, (u32)ie, (u32)js, (u32)je);
                 return false;
             }
         }
     }
     return true;
 }
+
+// static uintptr_t align_address_ (uintptr_t addr, u64 nbytes) {
+//     if ((addr & (nbytes - 1)) == 0) {
+//         return addr;
+//     }
+//     return (addr + (nbytes - 1)) & ~(nbytes - 1);
+// }
 
 GCC_NODISCARD static void* align_allocate_ (heap_id_t heap_id, size_t sz, size_t alignment) {
     ASSERT (heap_id >= 0 && heap_id < MEM_NUM_HEAP_SECTIONS, "");
@@ -109,13 +122,6 @@ GCC_NODISCARD static void* align_allocate_ (heap_id_t heap_id, size_t sz, size_t
     return ret;
 }
 
-GCC_NODISCARD void* page_allocate (void) {
-    heap_t* pheap = &heaps_[eHEAP_ID_MID];
-    void* alloc   = pheap->pcur_pos;
-    pheap->pcur_pos += PAGE_SIZE;
-    return alloc;
-}
-
 /*
  * \brief
  * \param sz size of allocation to make in bytes
@@ -123,7 +129,7 @@ GCC_NODISCARD void* page_allocate (void) {
  * boundary. Must be a power of 2.
  */
 GCC_NODISCARD void* align_allocate (size_t sz, size_t alignment) {
-    return align_allocate_ (eHEAP_ID_DEFAULT, sz, alignment);
+    return align_allocate_ (eHEAP_ID_MID, sz, alignment);
 }
 
 GCC_NODISCARD void* callocate (heap_id_t heap_id, size_t sz) {
@@ -152,6 +158,30 @@ GCC_NODISCARD void* align_allocate_set (size_t sz, u8 value, size_t alignment) {
 
 GCC_NODISCARD void* allocate (size_t sz) {
     return align_allocate (sz, MALLOC_ADDR_ALIGNMENT);
+}
+
+GCC_NODISCARD void* align_coherent_allocate (size_t sz, size_t alignment) {
+    return calign_allocate (eHEAP_ID_COHERENT, sz, alignment);
+}
+
+GCC_NODISCARD void* npage_allocate (heap_id_t heap_id, u64 npages) {
+    ASSERT (heap_id >= 0 && heap_id < MEM_NUM_HEAP_SECTIONS, "");
+    heap_t* pheap = &heaps_[heap_id];
+    void* alloc   = NULLPTR;
+    if (enter_critical (eCRITICAL_SECTION_TARGET_DISABLE_IRQ_FIQ)) {
+        if (pheap->end - (uintptr_t)pheap->pcur_pos < PAGE_SIZE * npages) {
+            LOG_ERROR ("Size [0x%X] is too large for heap [%u]", (u32)(PAGE_SIZE * npages), heap_id);
+            return NULLPTR;
+        }
+        alloc = pheap->pcur_pos;
+        pheap->pcur_pos += PAGE_SIZE * npages;
+        leave_critical ();
+    }
+    return alloc;
+}
+
+GCC_NODISCARD void* npage_coherent_allocate (u64 npages) {
+    return npage_allocate (eHEAP_ID_COHERENT, npages);
 }
 
 void delete (void* ptr) {
@@ -436,11 +466,22 @@ typedef struct page_desc_lvl3 {
 
 STATIC_ASSERT((sizeof(tbl_desc_lvl2) == 8));
 STATIC_ASSERT((sizeof(page_desc_lvl3) == 8));
+
+GCC_NODISCARD static void* vtable_page_allocate (void) {
+    heap_t* pheap = &heaps_[eHEAP_ID_MID];
+    if(pheap->end - (uintptr_t)pheap->pcur_pos < VTABLE_PAGE_SIZE) {
+        return NULLPTR;
+    }
+    void* alloc   = pheap->pcur_pos;
+    pheap->pcur_pos += VTABLE_PAGE_SIZE;
+    return alloc;
+}
+
 // clang-format on
 
 static void* create_translation_tbl_lvl3_ (uintptr_t addr) {
-    page_desc_lvl3* tbl = page_allocate ();
-    memset (tbl, 0, PAGE_SIZE);
+    page_desc_lvl3* tbl = vtable_page_allocate ();
+    memset (tbl, 0, VTABLE_PAGE_SIZE);
     // LOG_INFO ("MMU Level 3 Page Table with Addr [0x%X]", (uintptr_t)tbl);
     /*
      * With Granule Size 64KB addresses to level 3 tables have
@@ -449,7 +490,7 @@ static void* create_translation_tbl_lvl3_ (uintptr_t addr) {
      */
     ASSERT ((tbl != NULLPTR), "MMU Failed to allocate level 3 Page Table");
     ASSERT (ADDR_IS_ALIGNED (tbl, 16), "MMU Level 3 Page table address is NOT aligned: [0x%X]", (uintptr_t)tbl);
-    ASSERT ((sizeof (page_desc_lvl3) * MMU_LEVEL3_ENTRIES == PAGE_SIZE), "MMU Level 3 Table is incorrect size");
+    ASSERT ((sizeof (page_desc_lvl3) * MMU_LEVEL3_ENTRIES == VTABLE_PAGE_SIZE), "MMU Level 3 Table is incorrect size");
 
     for (uintptr_t entry_idx = 0; entry_idx < MMU_LEVEL3_ENTRIES; ++entry_idx) {
         page_desc_lvl3* desc = &(tbl[entry_idx]);
@@ -476,29 +517,31 @@ static void* create_translation_tbl_lvl3_ (uintptr_t addr) {
          */
         if (addr > KERNEL_END_ADDR) {
             desc->pxn = PXN_EL1_NO_EXECUTION;
-
-            if (addr >= VC_DRAM_MEM_START && addr <= VC_DRAM_MEM_END) {
+            if (addr >= ARM_DRAM_COHERENT_START && addr <= ARM_DRAM_COHERENT_END) {
+                desc->attr_idx = MAIR_DEVICE_COHERENT_IDX;
+                desc->sh       = SH_NORMAL_MEM_OUTER_SHARE;
+            } else if (addr >= VC_DRAM_MEM_START && addr <= VC_DRAM_MEM_END) {
                 desc->attr_idx = MAIR_NORMAL_NO_CACHE_IDX;
                 desc->sh       = SH_NORMAL_MEM_OUTER_SHARE;
-            } else if (addr >= PERIPH_BASE && addr <= PERIPH_END) {
+            } else if (addr >= PERIPH_BASE) { // && addr <= PERIPH_END) {
                 desc->attr_idx = MAIR_DEVICE_COHERENT_IDX;
                 desc->sh       = SH_NORMAL_MEM_OUTER_SHARE;
             }
         }
-        addr += PAGE_SIZE;
+        addr += VTABLE_PAGE_SIZE;
     }
     return (void*)tbl;
 }
 
 static void* translation_tbl_init_ (void) {
     uintptr_t addr           = 0x0;
-    tbl_desc_lvl2* table_ptr = page_allocate ();
-    memset (table_ptr, 0, PAGE_SIZE);
+    tbl_desc_lvl2* table_ptr = vtable_page_allocate ();
+    memset (table_ptr, 0, VTABLE_PAGE_SIZE);
     ASSERT (table_ptr != NULLPTR, "");
     ASSERT (ADDR_IS_ALIGNED (table_ptr, 16), "");
     // LOG_DEBUG ("MMU Level 2 Table Address [0x%X]", (uintptr_t)table_ptr);
     for (uintptr_t entry_idx = 0; entry_idx < MMU_LEVEL2_ENTRIES; ++entry_idx) {
-        addr = entry_idx * MMU_LEVEL3_ENTRIES * PAGE_SIZE;
+        addr = entry_idx * MMU_LEVEL3_ENTRIES * VTABLE_PAGE_SIZE;
         /*
          * Leave entries greater than 4GB as invalid entries
          */
@@ -506,12 +549,15 @@ static void* translation_tbl_init_ (void) {
         // u64 pcie_end         = 0x7FFFFFFFFUL;
         bool isin_pcie_range = addr >= MEM_PCIE_RANGE_START_VIRTUAL &&
                                addr <= MEM_PCIE_RANGE_END_VIRTUAL;
+        if (isin_pcie_range) {
+            LOG_INFO ("PCIe Range: 0x%X 0x%X", (u32)(addr >> 32), (u32)addr);
+        }
         if (addr > (4UL * 0x40000000UL) && isin_pcie_range == false) {
             continue;
         }
 
         void* subtbl = create_translation_tbl_lvl3_ (addr);
-        ASSERT (subtbl == NULLPTR, "");
+        ASSERT (subtbl != NULLPTR, "");
 
         tbl_desc_lvl2* desc = &(table_ptr[entry_idx]);
         desc->entry_type    = 3; // table descriptor
@@ -584,38 +630,46 @@ static void mmu_init (void) {
 }
 
 bool mem_init (heap_t (*config)[MEM_NUM_HEAP_SECTIONS]) {
-    if (config == NULLPTR) {
-        //#ifndef ON_HOST_TESTING
-        heap_t low = { .start    = (uintptr_t)ARM_DRAM_LOW_MEM_START,
-                       .end      = (uintptr_t)ARM_DRAM_LOW_MEM_END,
-                       .pcur_pos = (u8*)ARM_DRAM_LOW_MEM_START,
-                       .size = ARM_DRAM_LOW_MEM_END - ARM_DRAM_LOW_MEM_START,
-                       .pfree_list_head = NULLPTR };
-        heap_t mid = { .start    = (uintptr_t)ARM_DRAM_MID_MEM_START,
-                       .end      = (uintptr_t)ARM_DRAM_MID_MEM_END,
-                       .pcur_pos = (u8*)ARM_DRAM_MID_MEM_START,
-                       .size = ARM_DRAM_MID_MEM_END - ARM_DRAM_MID_MEM_START,
-                       .pfree_list_head = NULLPTR };
-        // heap_t high           = { .start    = (uintptr_t)ARM_DRAM_HIGH_MEM_START,
-        //                           .end      = (uintptr_t)ARM_DRAM_HIGH_MEM_END,
-        //                           .pcur_pos = (u8*)ARM_DRAM_HIGH_MEM_START,
-        //                           .size = ARM_DRAM_HIGH_MEM_END - ARM_DRAM_HIGH_MEM_START,
-        //                           .pfree_list_head = NULLPTR };
-        heaps_[eHEAP_ID_LOW] = low;
-        heaps_[eHEAP_ID_MID] = mid;
-        // heaps_[eHEAP_ID_HIGH] = high;
-        LOG_INFO (
-        "Low Heap Start [0x%X] End [0x%X]", heaps_[eHEAP_ID_LOW].start,
-        heaps_[eHEAP_ID_LOW].end);
-        LOG_INFO (
-        "Mid Heap Start [0x%X] End [0x%X]", heaps_[eHEAP_ID_MID].start,
-        heaps_[eHEAP_ID_MID].end);
-        // LOG_INFO (
-        // "High Heap Start [0x%X] End [0x%X]", heaps_[eHEAP_ID_HIGH].start,
-        // heaps_[eHEAP_ID_HIGH].end);
-        //#endif
-    }
-
+    // if (config == NULLPTR) {
+    // #ifndef ON_HOST_TESTING
+    heap_t coherent = { .start    = ARM_DRAM_COHERENT_START,
+                        .end      = ARM_DRAM_COHERENT_END,
+                        .pcur_pos = (u8*)ARM_DRAM_COHERENT_START,
+                        .size = ARM_DRAM_COHERENT_END - ARM_DRAM_COHERENT_START,
+                        .pfree_list_head = NULLPTR };
+    heap_t low      = { .start    = ARM_DRAM_LOW_MEM_START,
+                        .end      = ARM_DRAM_LOW_MEM_END,
+                        .pcur_pos = (u8*)ARM_DRAM_LOW_MEM_START,
+                        .size     = ARM_DRAM_LOW_MEM_END - ARM_DRAM_LOW_MEM_START,
+                        .pfree_list_head = NULLPTR };
+    heap_t mid      = { .start    = ARM_DRAM_MID_MEM_START,
+                        .end      = ARM_DRAM_MID_MEM_END,
+                        .pcur_pos = (u8*)ARM_DRAM_MID_MEM_START,
+                        .size     = ARM_DRAM_MID_MEM_END - ARM_DRAM_MID_MEM_START,
+                        .pfree_list_head = NULLPTR };
+    // heap_t high           = { .start    = (uintptr_t)ARM_DRAM_HIGH_MEM_START,
+    //                           .end      = (uintptr_t)ARM_DRAM_HIGH_MEM_END,
+    //                           .pcur_pos = (u8*)ARM_DRAM_HIGH_MEM_START,
+    //                           .size = ARM_DRAM_HIGH_MEM_END - ARM_DRAM_HIGH_MEM_START,
+    //                           .pfree_list_head = NULLPTR };
+    heaps_[eHEAP_ID_COHERENT] = coherent;
+    heaps_[eHEAP_ID_LOW]      = low;
+    heaps_[eHEAP_ID_MID]      = mid;
+    // heaps_[eHEAP_ID_HIGH] = high;
+    LOG_INFO (
+    "Coherent Heap Start [0x%X] End [0x%X]", heaps_[eHEAP_ID_COHERENT].start,
+    heaps_[eHEAP_ID_COHERENT].end);
+    LOG_INFO (
+    "Low Heap Start [0x%X] End [0x%X]", heaps_[eHEAP_ID_LOW].start,
+    heaps_[eHEAP_ID_LOW].end);
+    LOG_INFO (
+    "Mid Heap Start [0x%X] End [0x%X]", heaps_[eHEAP_ID_MID].start,
+    heaps_[eHEAP_ID_MID].end);
+    // LOG_INFO (
+    // "High Heap Start [0x%X] End [0x%X]", heaps_[eHEAP_ID_HIGH].start,
+    // heaps_[eHEAP_ID_HIGH].end);
+    //#endif
+    //}
     ASSERT (heaps_are_valid_ (&heaps_), "");
 
     // Invalidate instruction cache

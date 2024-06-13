@@ -111,17 +111,13 @@ static void mmio_space_init (mmio_space_t* mmio, uintptr_t base_addr) {
     ASSERT (mmio->pt_base == 0, "");
     mmio->base    = base_addr;
     mmio->op_base = base_addr + read8 (base_addr + 0x00);
-    LOG_INFO ("1");
     mmio->db_base = base_addr + (cap_read32_raw (mmio, 0x14) & 0xFFFFFFFC);
-    LOG_INFO ("2");
     mmio->rt_base = base_addr + (cap_read32_raw (mmio, 0x18) & 0xFFFFFFE0);
     mmio->pt_base = mmio->op_base + 0x400;
-    LOG_INFO ("2");
     mmio->hcx_params[0] = cap_read32_raw (mmio, 0x04);
     mmio->hcx_params[1] = cap_read32_raw (mmio, 0x08);
     mmio->hcx_params[2] = cap_read32_raw (mmio, 0x0C);
     mmio->hcx_params[3] = cap_read32_raw (mmio, 0x10);
-    LOG_INFO ("3");
     mmio->ecp_base =
     base_addr + ((cap_read32_raw (mmio, 0x10) & (0xFFFF << 16)) >> 16 << 2);
 }
@@ -155,22 +151,34 @@ xhci_usb_device_create (xhci_device_t* phost, xhci_rootport_t* prootport, usb_sp
 
 static void* xhci_dma_allocate (size_t sz, size_t align, size_t boundary) {
     if (pdma_current_ == NULLPTR) {
-        pdma_current_ = calign_allocate (eHEAP_ID_LOW, DMA_BUFFER_SIZE, XHCI_PAGE_SIZE);
+        pdma_current_ = npage_coherent_allocate (10); // 10 * PAGE_SIZE (4096)
         ASSERT (pdma_current_ != NULLPTR, "XHCI failed to allocate dma buffer");
         dma_start_ = (uintptr_t)pdma_current_;
-        dma_end_   = (uintptr_t)(pdma_current_ + DMA_BUFFER_SIZE);
+        dma_end_   = (uintptr_t)(pdma_current_ + 10 * PAGE_SIZE);
     }
 
-    u32 const def_size = 1024;
-    if (dma_end_ - (uintptr_t)pdma_current_ < def_size) {
+    if (sz <= BLOCK_SIZE && align <= BLOCK_ALIGN && boundary <= BLOCK_BOUNDARY) {
+        sz       = BLOCK_SIZE;
+        align    = BLOCK_ALIGN;
+        boundary = BLOCK_BOUNDARY;
+    }
+
+    uintptr_t start = (uintptr_t)pdma_current_;
+    size_t mask     = align - 1;
+    if ((start & mask) > 0) {
+        start = (start + mask) & ~mask;
+    }
+    mask = boundary - 1;
+    if (((start + (sz - 1)) & ~mask) != (start & ~mask)) {
+        start = (start + mask) & ~mask;
+    }
+    if (dma_end_ - start < (start + sz)) {
         return NULLPTR;
     }
-    if (sz > def_size) {
-        ASSERT (false, "XHCI default size is smaller than sz");
-    }
-    void* ret = pdma_current_;
-    memset (ret, 0, def_size);
-    pdma_current_ += def_size;
+    pdma_current_ = (u8*)start;
+    void* ret     = pdma_current_;
+    memset (ret, 0, sz);
+    pdma_current_ += sz;
     return ret;
 }
 
@@ -414,38 +422,12 @@ bool xhci_device_init (xhci_device_t* host) {
         LOG_ERROR ("USB unsupported xHCI version [0x%X]", version);
         return false;
     }
-    // TODO: disabling interrupts fixes the hang but mmio space init still hangs
-    // The interrupt problem has to do with the enter and leave critical
-    // functions DISABLE_IRQ_FIQ ();
     mmio_space_init (host->pmmio, base_addr);
-    // DISABLE_IRQ_FIQ ();
-    LOG_INFO ("11");
-    LOG_INFO ("11");
-    LOG_INFO ("11");
-    LOG_INFO ("11");
-    LOG_INFO ("11");
-    LOG_INFO ("11");
-    LOG_INFO ("11");
-    LOG_INFO ("11");
-    LOG_INFO ("11");
-    LOG_INFO ("11");
-    LOG_INFO ("11");
-    LOG_INFO ("11");
-    LOG_INFO ("11");
-    LOG_INFO ("11");
-    LOG_INFO ("11");
-    LOG_INFO ("11");
-    LOG_INFO ("2");
-
-    u32 nmax_ports = cap_read32 (host->pmmio, 0x04) & 0xFF;
-    LOG_INFO ("6");
-    ASSERT (64 <= nmax_ports, "USB number of ports exceed max");
+    u32 nmax_ports = (cap_read32 (host->pmmio, 0x04) & (0xFF << 24)) >> 24;
+    ASSERT (nmax_ports > 0 && nmax_ports <= XHCI_CONFIG_MAX_PORTS, "USB number of ports exceed max");
     u32 nmax_scratch_pads = (cap_read32 (host->pmmio, 0x08) & (0x1F << 27)) >> 27;
-    LOG_INFO ("7");
-    ASSERT (cap_read32 (host->pmmio, 0x10) & (1 << 2), "USB mmio cap fail");
-    LOG_INFO ("8");
+    ASSERT (!(cap_read32 (host->pmmio, 0x10) & (1 << 2)), "USB mmio cap fail");
     LOG_INFO ("USB # of ports %u # of scratch pads %u", nmax_ports, nmax_scratch_pads);
-
     if (xhci_hardware_reset (host) == false) {
         LOG_ERROR ("USB failed to reset hardware");
         return false;
